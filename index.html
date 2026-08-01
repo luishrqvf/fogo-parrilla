@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fogo Parrilla — Gestão</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#12100e;--card:#1d1a17;--card2:#26221e;--line:#37312b;--tx:#efe9e2;--mut:#9c938a;--fire:#ff7a1a;--fire2:#ffb35c;--ok:#4cc27a;--bad:#e5544b;--blue:#5aa9e6}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+header{display:flex;align-items:center;gap:14px;padding:14px 22px;background:linear-gradient(135deg,#1d1a17,#241d15);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;flex-wrap:wrap}
+header h1{font-size:20px;letter-spacing:.5px}
+header h1 span{color:var(--fire)}
+.flame{font-size:26px}
+#mes{margin-left:auto;background:var(--card2);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:14px}
+nav{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--line);background:var(--bg);position:sticky;top:57px;z-index:19;overflow-x:auto}
+nav button{background:none;border:none;color:var(--mut);font-size:14px;padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--fire);border-color:var(--fire);font-weight:600}
+main{padding:20px;max-width:1200px;margin:0 auto}
+.grid{display:grid;gap:12px}
+.kpis{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card .lbl{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.card .val{font-size:20px;font-weight:700}
+.card .val.ok{color:var(--ok)}.card .val.bad{color:var(--bad)}.card .val.fire{color:var(--fire2)}
+.charts{grid-template-columns:1fr;margin-top:14px}
+@media(min-width:900px){.charts{grid-template-columns:2fr 1fr}}
+.chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;height:320px}
+.chartbox h3{font-size:14px;color:var(--mut);margin-bottom:10px}
+.chartbox canvas{max-height:260px}
+h2{font-size:17px;margin:22px 0 10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--mut);text-align:left;font-weight:600;padding:8px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td.r,th.r{text-align:right}
+tr:hover td{background:#242019}
+.tw{overflow:auto;max-height:60vh;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.bar{display:flex;gap:8px;align-items:center;margin:14px 0;flex-wrap:wrap}
+.btn{background:var(--fire);color:#1a1208;border:none;border-radius:8px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}
+.btn.sec{background:var(--card2);color:var(--tx);border:1px solid var(--line)}
+.btn.mini{padding:3px 9px;font-size:12px;border-radius:6px}
+.btn.danger{background:none;border:1px solid var(--bad);color:var(--bad)}
+input,select{background:var(--card2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 10px;font-size:14px}
+input:focus,select:focus{outline:1px solid var(--fire)}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:640px;width:92vw}
+dialog.wide{max-width:1040px;width:96vw}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h3{margin-bottom:14px;color:var(--fire2)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.fgrid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mut)}
+.dlgbar{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.pill.c{background:#3d2a17;color:var(--fire2)}.pill.d{background:#1e3141;color:var(--blue)}
+.pill.dia{background:#3a3117;color:#ffd66b}.pill.noite{background:#221a38;color:#b79df5}
+.tot{font-weight:700;color:var(--fire2)}
+.search{flex:1;min-width:160px}
+.muted{color:var(--mut);font-size:12px}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+body.light{--bg:#f5f1ea;--card:#ffffff;--card2:#efe9df;--line:#ddd4c7;--tx:#2b2115;--mut:#8a7d6d;--fire:#e05e00;--fire2:#b34a00;--ok:#1e8a4c;--bad:#c62f27;--blue:#1f6fb2}
+body.light header{background:linear-gradient(135deg,#ffffff,#f7efe2)}
+body.light .btn{color:#fff}
+body.light tr:hover td{background:#f3ede2}
+body.light .pill.dia{background:#f6e7bd;color:#7a5c00}
+body.light .pill.noite{background:#e6ddfa;color:#5b3fa8}
+body.light .pill.c{background:#fbe3c9;color:#9a4b00}
+body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
+</style>
+</head>
+<body>
+<header>
+  <span class="flame">🔥</span>
+  <h1>FOGO <span>PARRILLA</span> <span class="muted" style="font-weight:400">· gestão financeira · v3</span></h1>
+  <select id="mes"></select>
+  <button id="themeBtn" class="btn sec" title="Alternar tema" style="padding:7px 11px">☀️</button>
+</header>
+<nav id="nav">
+  <button data-t="dash" class="on">📊 Dashboard</button>
+  <button data-t="caixa">💰 Caixa Diário</button>
+  <button data-t="compras">🛒 Compras</button>
+  <button data-t="freel">👷 Freelancers</button>
+  <button data-t="assin">✍️ Notas Assinadas</button>
+  <button data-t="nfs">📄 Notas Fiscais</button>
+</nav>
+<main id="main"></main>
+
+<dialog id="dlg"></dialog>
+
+<script id="seed" type="application/json">{"version": 2, "caixa": [], "compras": [], "freelancers": [], "assinadas": [], "nfs": []}</script>
+<script>
+const fmt=v=>(v<0?'-':'')+'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtD=d=>{if(!d)return'—';const[y,m,dd]=String(d).split('-');return dd+'/'+m+'/'+(y||'').slice(2)};
+const DOW=['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
+const dow=d=>{if(!d)return'';const x=new Date(d+'T12:00:00');return isNaN(x)?'':DOW[x.getDay()]};
+const KEY='fogoParrillaDB_v1';
+let DB, tab='dash';
+
+function load(){
+  try{const s=localStorage.getItem(KEY); if(s){DB=JSON.parse(s);return}}catch(e){}
+  DB=JSON.parse(document.getElementById('seed').textContent);
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){alert('Não foi possível salvar no navegador.')}}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+load();
+['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
+
+// ---- vínculo automático: compras/freelancers/assinadas alimentam o fechamento ----
+const r2=v=>Math.round(v*100)/100;
+function linked(c){
+  const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
+  return{
+    free:DB.freelancers.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
+    assin:DB.assinadas.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
+    custo:DB.compras.filter(x=>m(x)&&x.tipo==='Custo').reduce((s,x)=>s+(+x.valor||0),0),
+    desp:DB.compras.filter(x=>m(x)&&x.tipo!=='Custo').reduce((s,x)=>s+(+x.valor||0),0)
+  };
+}
+function eff(c){
+  const l=linked(c);
+  return{custo:r2((+c.custoMan||0)+l.custo),desp:r2((+c.despMan||0)+l.desp),
+         free:r2((+c.freeMan||0)+l.free),assin:r2((+c.assinMan||0)+l.assin),l};
+}
+// migração v2: valores antigos armazenados viram "ajuste avulso" (total preservado)
+function migrate(){
+  if(DB.version===2)return;
+  DB.caixa.forEach(c=>{
+    const l=linked(c);
+    c.custoMan=r2((+c.custo||0)-l.custo); c.despMan=r2((+c.desp||0)-l.desp);
+    c.freeMan=r2((+c.free||0)-l.free);   c.assinMan=r2((+c.assin||0)-l.assin);
+    delete c.custo; delete c.desp; delete c.free; delete c.assin;
+  });
+  DB.version=2;
+}
+migrate();save();
+
+// ---- tema ----
+const TKEY='fogoTheme';
+function applyTheme(t){
+  document.body.classList.toggle('light',t==='light');
+  document.getElementById('themeBtn').textContent=t==='light'?'🌙':'☀️';
+  try{localStorage.setItem(TKEY,t)}catch(e){}
+}
+document.getElementById('themeBtn').onclick=()=>{
+  applyTheme(document.body.classList.contains('light')?'dark':'light');render();
+};
+applyTheme((()=>{try{return localStorage.getItem(TKEY)||'dark'}catch(e){return 'dark'}})());
+const css=v=>getComputedStyle(document.body).getPropertyValue(v).trim();
+
+// ---- month selector ----
+function months(){
+  const set=new Set();
+  DB.caixa.forEach(c=>set.add(c.data.slice(0,7)));
+  DB.nfs.forEach(c=>c.data&&set.add(c.data.slice(0,7)));
+  const now=new Date().toISOString().slice(0,7); set.add(now);
+  return[...set].sort().reverse();
+}
+let MES;
+function drawMes(){
+  const sel=document.getElementById('mes'); const ms=months();
+  if(!MES||!ms.includes(MES))MES=ms[0];
+  const NM=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  sel.innerHTML=ms.map(m=>`<option value="${m}" ${m===MES?'selected':''}>${NM[+m.slice(5,7)-1]}/${m.slice(0,4)}</option>`).join('');
+  sel.onchange=()=>{MES=sel.value;render()};
+}
+const inMes=x=>x.data&&x.data.slice(0,7)===MES;
+
+// ---- generic helpers ----
+const sum=(a,f)=>a.reduce((s,x)=>s+(+f(x)||0),0);
+function del(list,id){if(!confirm('Excluir este lançamento?'))return;DB[list]=DB[list].filter(x=>x.id!==id);save();render()}
+
+// ---- dialog forms ----
+function openForm(title,fields,onOk,init={}){
+  const dlg=document.getElementById('dlg');
+  dlg.classList.remove('wide');
+  dlg.innerHTML=`<h3>${title}</h3><div class="fgrid">${fields.map(f=>{
+    const v=init[f.k]??f.def??'';
+    if(f.opts)return`<label>${f.l}<select id="f_${f.k}">${f.opts.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('')}</select></label>`;
+    return`<label>${f.l}<input id="f_${f.k}" type="${f.t||'text'}" step="0.01" value="${v}"></label>`;
+  }).join('')}</div>
+  <div class="dlgbar"><button class="btn sec" id="f_cancel">Cancelar</button><button class="btn" id="f_ok">Salvar</button></div>`;
+  dlg.showModal();
+  dlg.querySelector('#f_cancel').onclick=()=>dlg.close();
+  dlg.querySelector('#f_ok').onclick=()=>{
+    const o={};
+    for(const f of fields){
+      let v=dlg.querySelector('#f_'+f.k).value;
+      if(f.t==='number')v=parseFloat(v)||0;
+      o[f.k]=v;
+    }
+    if(fields.some(f=>f.req&&!o[f.k])){alert('Preencha os campos obrigatórios.');return}
+    dlg.close(); onOk(o);
+  };
+}
+
+// ================= DASHBOARD =================
+function dash(){
+  const cx=DB.caixa.filter(inMes);
+  const fat=sum(cx,c=>c.fat+c.ifood+c.whats);
+  const din=sum(cx,c=>c.din), cart=sum(cx,c=>c.cart), ifood=sum(cx,c=>c.ifood), whats=sum(cx,c=>c.whats);
+  const saidas=sum(cx,c=>{const e=eff(c);return e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0)});
+  const nfs=DB.nfs.filter(inMes);
+  const nfTot=sum(nfs,n=>n.valor);
+  const freeTot=sum(DB.freelancers.filter(inMes),f=>f.valor);
+  const assinTot=sum(DB.assinadas.filter(inMes),f=>f.valor);
+  const gastos=nfTot+saidas;
+  const lucro=fat-gastos;
+  const byT=t=>cx.filter(c=>c.turno===t);
+  const fatDia=sum(byT('DIA'),c=>c.fat+c.ifood+c.whats), fatNoite=sum(byT('NOITE'),c=>c.fat+c.ifood+c.whats);
+  const dias=[...new Set(cx.map(c=>c.data))].sort();
+  const k=(l,v,cls='')=>`<div class="card"><div class="lbl">${l}</div><div class="val ${cls}">${typeof v==='number'?fmt(v):v}</div></div>`;
+  document.getElementById('main').innerHTML=`
+  <div class="grid kpis">
+    ${k('Faturamento total',fat,'fire')}
+    ${k('Dinheiro',din)}${k('PIX / Cartão',cart)}${k('iFood',ifood)}${k('WhatsApp',whats)}
+    ${k('Faturamento DIA',fatDia)}${k('Faturamento NOITE',fatNoite)}
+    ${k('Média por dia',dias.length?fat/dias.length:0)}
+    ${k('Saídas de caixa',saidas,'bad')}
+    ${k('Notas fiscais',nfTot,'bad')}
+    ${k('Freelancers',freeTot)}
+    ${k('Notas assinadas',assinTot)}
+    ${k('Gastos totais',gastos,'bad')}
+    ${k('Resultado',lucro,lucro>=0?'ok':'bad')}
+    ${k('Margem',fat?(lucro/fat*100).toFixed(1).replace('.',',')+'%':'—',lucro>=0?'ok':'bad')}
+  </div>
+  <div class="grid charts">
+    <div class="chartbox"><h3>Faturamento diário — DIA × NOITE</h3><canvas id="ch1"></canvas></div>
+    <div class="chartbox"><h3>Formas de recebimento</h3><canvas id="ch2"></canvas></div>
+  </div>`;
+  const dd=dias.map(d=>byT('DIA').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
+  const dn=dias.map(d=>byT('NOITE').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
+  const MUT=css('--mut'),LN=css('--line');
+  const gopt={responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:MUT}}},scales:{x:{ticks:{color:MUT},grid:{color:LN},stacked:true},y:{ticks:{color:MUT},grid:{color:LN},stacked:true}}};
+  new Chart(document.getElementById('ch1'),{type:'bar',data:{labels:dias.map(d=>d.slice(8)+' '+dow(d)),datasets:[
+    {label:'DIA',data:dd,backgroundColor:'#ffb35c'},{label:'NOITE',data:dn,backgroundColor:'#7c5cd6'}]},options:gopt});
+  new Chart(document.getElementById('ch2'),{type:'doughnut',data:{labels:['Cartão/PIX','Dinheiro','iFood','WhatsApp'],
+    datasets:[{data:[cart,din,ifood,whats],backgroundColor:['#ff7a1a','#4cc27a','#e5544b','#5aa9e6'],borderColor:css('--card')}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:MUT}}}}});
+}
+
+// ================= CAIXA =================
+const CXF=[
+  {k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},
+  {k:'resp',l:'Responsável'},
+  {k:'cxIni',l:'Caixa inicial',t:'number'},{k:'fat',l:'Faturamento (salão)',t:'number'},
+  {k:'ifood',l:'iFood',t:'number'},{k:'whats',l:'WhatsApp',t:'number'},
+  {k:'supr',l:'Suprimento',t:'number'},{k:'din',l:'Dinheiro',t:'number'},
+  {k:'cart',l:'PIX/Cartão',t:'number'},{k:'assinMan',l:'Assinadas — ajuste avulso',t:'number'},
+  {k:'custoMan',l:'Custo — ajuste avulso',t:'number'},{k:'despMan',l:'Despesa — ajuste avulso',t:'number'},
+  {k:'freeMan',l:'Freelancer — ajuste avulso',t:'number'},{k:'taxi',l:'Táxi',t:'number'},
+  {k:'moto',l:'Moto',t:'number'},{k:'cxFin',l:'Caixa final (contado)',t:'number'},
+  {k:'dif',l:'Diferença',t:'number'}];
+// ---- relatório do turno (impressão + WhatsApp) ----
+function caixaMovs(c){
+  const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
+  return{compras:DB.compras.filter(m),freel:DB.freelancers.filter(m),assin:DB.assinadas.filter(m)};
+}
+function copyText(t,ok){
+  const fb=()=>{const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);
+    ta.select();try{document.execCommand('copy');alert(ok)}catch(e){alert('Não foi possível copiar.')}ta.remove()};
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(()=>alert(ok),fb);
+  else fb();
+}
+function caixaTxt(c){
+  const e=eff(c),mv=caixaMovs(c);
+  const sai=r2(e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0));
+  const L=[];
+  L.push('*FOGO PARRILLA — FECHAMENTO DE CAIXA*');
+  L.push(`📅 ${fmtD(c.data)} ${dow(c.data)} — turno ${c.turno}`);
+  if(c.resp)L.push(`👤 Responsável: ${c.resp}`);
+  L.push('','*RESUMO*');
+  L.push(`Caixa inicial: ${fmt(c.cxIni)}`);
+  if(+c.supr)L.push(`Suprimento: ${fmt(c.supr)}`);
+  L.push(`Faturamento salão: ${fmt(c.fat)}`);
+  if(+c.ifood)L.push(`iFood: ${fmt(c.ifood)}`);
+  if(+c.whats)L.push(`WhatsApp: ${fmt(c.whats)}`);
+  L.push(`Dinheiro: ${fmt(c.din)}`);
+  L.push(`PIX/Cartão: ${fmt(c.cart)}`);
+  if(e.assin)L.push(`Assinadas: ${fmt(e.assin)}`);
+  L.push('',`*SAÍDAS: ${fmt(sai)}*`);
+  if(e.custo)L.push(`Custo: ${fmt(e.custo)}`);
+  if(e.desp)L.push(`Despesa: ${fmt(e.desp)}`);
+  if(e.free)L.push(`Freelancer: ${fmt(e.free)}`);
+  if(+c.taxi)L.push(`Táxi: ${fmt(c.taxi)}`);
+  if(+c.moto)L.push(`Moto: ${fmt(c.moto)}`);
+  L.push('',`*Caixa final: ${fmt(c.cxFin)}*`);
+  L.push(`Diferença: ${fmt(c.dif)}`);
+  const mov=[];
+  if(mv.compras.length)mov.push('🛒 Compras: '+mv.compras.map(x=>`${x.fornecedor} ${fmt(x.valor)}`).join(', '));
+  if(mv.freel.length)mov.push('👷 Freelancers: '+mv.freel.map(x=>`${x.nome} ${fmt(freeTotal(x))}`).join(', '));
+  if(mv.assin.length)mov.push('✍️ Assinadas: '+mv.assin.map(x=>`${x.nome} ${fmt(x.valor)}`).join(', '));
+  if(mov.length){L.push('','*MOVIMENTOS*');mov.forEach(x=>L.push(x))}
+  return L.join('\n');
+}
+function printCaixa(c){
+  const e=eff(c),mv=caixaMovs(c);
+  const money=v=>(+v||0).toFixed(2).replace('.',',');
+  const sai=r2(e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0));
+  const ln=(l,v,b)=>`<div style="display:flex;justify-content:space-between">${b?'<b>'+l+'</b>':l}<span>${b?'<b>'+money(v)+'</b>':money(v)}</span></div>`;
+  let mov='';
+  if(mv.compras.length)mov+=`<div class="line"></div><div><b>COMPRAS</b></div>`+mv.compras.map(x=>ln(x.fornecedor+' ('+x.tipo+')',x.valor)).join('');
+  if(mv.freel.length)mov+=`<div class="line"></div><div><b>FREELANCERS</b></div>`+mv.freel.map(x=>ln(x.nome,freeTotal(x))).join('');
+  if(mv.assin.length)mov+=`<div class="line"></div><div><b>NOTAS ASSINADAS</b></div>`+mv.assin.map(x=>ln(x.nome,x.valor)).join('');
+  const w=window.open('','_blank','width=400,height=680');
+  if(!w){alert('Libere pop-ups para imprimir o relatório.');return}
+  w.document.write(`<html><head><title>Fechamento ${fmtD(c.data)} ${c.turno}</title><style>
+  @page{size:80mm auto;margin:2mm}
+  body{font-family:'Courier New',monospace;font-size:12px;width:72mm;margin:0;color:#000;background:#fff}
+  h1{font-size:15px;text-align:center;margin:2px 0;letter-spacing:1px}
+  .c{text-align:center}.line{border-top:1px dashed #000;margin:5px 0}
+  .sig{margin-top:36px;border-top:1px solid #000;text-align:center;padding-top:3px;font-size:11px}
+  </style></head><body>
+  <h1>FOGO PARRILLA</h1>
+  <div class="c">FECHAMENTO DE CAIXA</div>
+  <div class="line"></div>
+  <div><b>${fmtD(c.data)} ${dow(c.data)} — TURNO ${c.turno}</b></div>
+  ${c.resp?`<div>RESPONSAVEL: <b>${String(c.resp).toUpperCase()}</b></div>`:''}
+  <div class="line"></div>
+  ${ln('Caixa inicial',c.cxIni)}
+  ${+c.supr?ln('Suprimento',c.supr):''}
+  ${ln('Faturamento salao',c.fat)}
+  ${+c.ifood?ln('iFood',c.ifood):''}
+  ${+c.whats?ln('WhatsApp',c.whats):''}
+  ${ln('Dinheiro',c.din)}
+  ${ln('PIX/Cartao',c.cart)}
+  ${e.assin?ln('Assinadas',e.assin):''}
+  <div class="line"></div>
+  ${ln('SAIDAS',sai,1)}
+  ${e.custo?ln('Custo',e.custo):''}
+  ${e.desp?ln('Despesa',e.desp):''}
+  ${e.free?ln('Freelancer',e.free):''}
+  ${+c.taxi?ln('Taxi',c.taxi):''}
+  ${+c.moto?ln('Moto',c.moto):''}
+  <div class="line"></div>
+  ${ln('CAIXA FINAL',c.cxFin,1)}
+  ${ln('Diferenca',c.dif)}
+  ${mov}
+  <div class="sig">ASSINATURA DO RESPONSAVEL${c.resp?' — '+String(c.resp).toUpperCase():''}</div>
+  <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
+  </body></html>`);
+  w.document.close();w.focus();
+  setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
+function caixa(){
+  const rows=DB.caixa.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
+  const t=sum(rows,c=>c.fat+c.ifood+c.whats);
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">Fechamentos de caixa</h2>
+    <span class="muted">${rows.length} turnos · total ${fmt(t)}</span>
+    <button class="btn" style="margin-left:auto" id="add">+ Novo fechamento</button></div>
+  <p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>
+  <div class="tw"><table><thead><tr>
+    <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th><th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
+    <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th><th class="r">Saídas</th>
+    <th class="r">Cx final</th><th class="r">Difer.</th><th></th></tr></thead><tbody>
+    ${rows.map(c=>{const e=eff(c);const sai=e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0);
+      const tip=(v,man,lk)=>`title="lançamentos: ${fmt(lk)} + avulso: ${fmt(man||0)}"`;return`<tr>
+      <td>${fmtD(c.data)} <span class="muted">${dow(c.data)}</span></td>
+      <td><span class="pill ${c.turno==='DIA'?'dia':'noite'}">${c.turno}</span></td>
+      <td title="${c.resp||''}">${c.resp?String(c.resp).split(' ')[0]:'—'}</td>
+      <td class="r">${fmt(c.cxIni)}</td><td class="r tot">${fmt(c.fat)}</td>
+      <td class="r">${c.ifood?fmt(c.ifood):'—'}</td><td class="r">${c.whats?fmt(c.whats):'—'}</td>
+      <td class="r">${fmt(c.din)}</td><td class="r">${fmt(c.cart)}</td>
+      <td class="r" ${tip(e.assin,c.assinMan,e.l.assin)}>${e.assin?fmt(e.assin):'—'}</td>
+      <td class="r" ${tip(e.custo,c.custoMan,e.l.custo)}>${e.custo?fmt(e.custo):'—'}</td>
+      <td class="r" ${tip(e.desp,c.despMan,e.l.desp)}>${e.desp?fmt(e.desp):'—'}</td>
+      <td class="r" ${tip(e.free,c.freeMan,e.l.free)}>${e.free?fmt(e.free):'—'}</td>
+      <td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>
+      <td class="r">${fmt(c.cxFin)}</td>
+      <td class="r ${Math.abs(c.dif)>1?'neg':'muted'}">${fmt(c.dif)}</td>
+      <td><button class="btn mini sec" data-pc="${c.id}" title="Imprimir relatório">🖨</button>
+          <button class="btn mini sec" data-wc="${c.id}" title="Copiar p/ WhatsApp">📋</button>
+          <button class="btn mini sec" data-e="${c.id}">✎</button>
+          <button class="btn mini danger" data-d="${c.id}">✕</button></td></tr>`}).join('')}
+  </tbody></table></div>`;
+  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXF,o=>{o.id=uid();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>printCaixa(DB.caixa.find(x=>x.id===b.dataset.pc)));
+  document.querySelectorAll('[data-wc]').forEach(b=>b.onclick=()=>copyText(caixaTxt(DB.caixa.find(x=>x.id===b.dataset.wc)),'Relatório copiado! É só colar no WhatsApp.'));
+  wireEdit('caixa',CXF,'💰 Editar fechamento');
+}
+function wireEdit(list,fields,title){
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const it=DB[list].find(x=>x.id===b.dataset.e);
+    openForm(title,fields,o=>{Object.assign(it,o);save();render()},it);
+  });
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del(list,b.dataset.d));
+}
+
+// ============ COMPRAS / FREELANCERS / ASSINADAS ============
+function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
+  let rows=DB[list].filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
+  const q=(window._q||'').toLowerCase();
+  if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  const tot=sum(rows,r=>r.valor);
+  const groups={};
+  rows.forEach(r=>{const g=r[groupBy];groups[g]=(groups[g]||0)+r.valor});
+  const top=Object.entries(groups).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">${title}</h2><span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span></span>
+    <input class="search" placeholder="🔍 buscar..." id="q" value="${window._q||''}">
+    <button class="btn" id="add">+ Novo</button></div>
+  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+    <div class="tw"><table><thead><tr>${cols.map(c=>`<th class="${c.r?'r':''}">${c.l}</th>`).join('')}<th></th></tr></thead><tbody>
+      ${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.r?'r':''}">${c.f(r)}</td>`).join('')}
+      <td><button class="btn mini sec" data-e="${r.id}">✎</button> <button class="btn mini danger" data-d="${r.id}">✕</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="card"><div class="lbl">Total por ${groupBy==='nome'?'pessoa':'fornecedor'}</div>
+      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
+  </div>`;
+  document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
+    const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  document.getElementById('add').onclick=()=>openForm(addTitle||'Novo lançamento',fields,o=>{o.id=uid();DB[list].push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  wireEdit(list,fields,editTitle||'Editar lançamento');
+}
+const pillT=r=>`<span class="pill ${r.turno==='DIA'?'dia':'noite'}">${r.turno||''}</span>`;
+function compras(){listView({title:'Compras do período',list:'compras',groupBy:'fornecedor',addTitle:'🛒 Nova compra',editTitle:'🛒 Editar compra',
+  fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'fornecedor',l:'Fornecedor *',req:1},{k:'tipo',l:'Tipo',opts:['Custo','Despesa']},{k:'valor',l:'Valor *',t:'number',req:1}],
+  cols:[{l:'Data',f:r=>fmtD(r.data)},{l:'Turno',f:pillT},{l:'Fornecedor',f:r=>r.fornecedor},
+        {l:'Tipo',f:r=>`<span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span>`},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
+// ================= FREELANCERS (pagamento semanal + recibo térmico) =================
+function freeTotal(f){
+  if(f.itens&&f.itens.length)return r2(f.itens.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0));
+  return r2(+f.valor||0);
+}
+function freeItens(f){return(f.itens&&f.itens.length)?f.itens:[{data:f.data,turno:f.turno,valor:+f.valor||0,he:0,heValor:0}]}
+function freeForm(title,init,onOk){
+  const dlg=document.getElementById('dlg');
+  dlg.classList.add('wide');
+  let itens=(init.itens&&init.itens.length)?JSON.parse(JSON.stringify(init.itens))
+    :[{data:init.data||MES+'-01',turno:init.turno||'DIA',valor:+init.valor||0,he:0,heValor:0}];
+  const totC=()=>r2(itens.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0));
+  const funcs=[...new Set(['GARÇOM','COZINHA','COPA','CHURRASQUEIRO','CUMIM','CAIXA','BAR','LIMPEZA','SEGURANÇA',
+    ...DB.freelancers.flatMap(f=>(f.itens||[]).map(i=>String(i.funcao||'').toUpperCase()).filter(Boolean))])].sort();
+  function draw(){
+    dlg.innerHTML=`<datalist id="funcoes">${funcs.map(f=>`<option value="${f}">`).join('')}</datalist><h3>${title}</h3>
+    <div class="fgrid" style="margin-bottom:10px">
+      <label>Nome *<input id="ff_nome" value="${init.nome||''}"></label>
+      <label>Data do pagamento *<input id="ff_data" type="date" value="${init.data||MES+'-01'}"></label>
+      <label>Turno do caixa<select id="ff_turno"><option ${init.turno!=='NOITE'?'selected':''}>DIA</option><option ${init.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
+    </div>
+    <div class="muted" style="margin-bottom:6px">Dias e turnos trabalhados (HE = horas extras):</div>
+    <div style="overflow:auto;max-height:40vh"><table><thead><tr><th>Dia</th><th>Turno</th><th>Função</th><th class="r">Diária R$</th><th class="r">HE (h)</th><th class="r">HE R$</th><th></th></tr></thead><tbody>
+    ${itens.map((it,ix)=>`<tr>
+      <td><input type="date" data-k="data" data-i="${ix}" value="${it.data||''}" style="padding:5px"></td>
+      <td><select data-k="turno" data-i="${ix}" style="padding:5px"><option ${it.turno!=='NOITE'?'selected':''}>DIA</option><option ${it.turno==='NOITE'?'selected':''}>NOITE</option></select></td>
+      <td><input data-k="funcao" data-i="${ix}" value="${it.funcao||''}" list="funcoes" placeholder="garçom..." style="width:110px;padding:5px"></td>
+      <td><input type="number" step="0.01" min="0" data-k="valor" data-i="${ix}" value="${it.valor||''}" style="width:92px;padding:5px;text-align:right"></td>
+      <td><input type="number" step="0.5" min="0" data-k="he" data-i="${ix}" value="${it.he||''}" style="width:64px;padding:5px;text-align:right"></td>
+      <td><input type="number" step="0.01" min="0" data-k="heValor" data-i="${ix}" value="${it.heValor||''}" style="width:86px;padding:5px;text-align:right"></td>
+      <td><button class="btn mini danger" data-del="${ix}">✕</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="bar" style="margin:8px 0">
+      <button class="btn sec mini" id="ff_add">+ adicionar dia</button>
+      <span style="margin-left:auto" class="tot" id="ff_tot">Total: ${fmt(totC())}</span>
+    </div>
+    <div class="dlgbar">
+      <button class="btn sec" id="ff_cancel">Cancelar</button>
+      <button class="btn sec" id="ff_save">Salvar</button>
+      <button class="btn" id="ff_print">💾 Salvar e imprimir 🖨</button>
+    </div>`;
+    dlg.querySelectorAll('[data-k]').forEach(el=>{el.oninput=el.onchange=()=>{
+      const k=el.dataset.k;itens[+el.dataset.i][k]=(k==='data'||k==='turno'||k==='funcao')?el.value:(parseFloat(el.value)||0);
+      dlg.querySelector('#ff_tot').textContent='Total: '+fmt(totC());}});
+    dlg.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+      itens.splice(+b.dataset.del,1);
+      if(!itens.length)itens.push({data:MES+'-01',turno:'DIA',valor:0,he:0,heValor:0});
+      draw()});
+    dlg.querySelector('#ff_add').onclick=()=>{
+      const last=itens[itens.length-1];let nds=last&&last.data?last.data:MES+'-01';
+      if(last&&last.data){const nd=new Date(last.data+'T12:00:00');nd.setDate(nd.getDate()+1);nds=nd.toISOString().slice(0,10)}
+      itens.push({data:nds,turno:last?last.turno:'DIA',funcao:last?last.funcao||'':'',valor:last?+last.valor||0:0,he:0,heValor:0});draw()};
+    dlg.querySelector('#ff_cancel').onclick=()=>dlg.close();
+    const doSave=print=>{
+      const nome=dlg.querySelector('#ff_nome').value.trim();
+      const data=dlg.querySelector('#ff_data').value;
+      if(!nome||!data){alert('Preencha nome e data do pagamento.');return}
+      const clean=itens.filter(i=>i.data);
+      if(!clean.length){alert('Lance ao menos um dia trabalhado.');return}
+      const rec={nome:nome.toUpperCase(),data,turno:dlg.querySelector('#ff_turno').value,itens:clean,
+                 valor:r2(clean.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0))};
+      dlg.close();onOk(rec,print);
+    };
+    dlg.querySelector('#ff_save').onclick=()=>doSave(false);
+    dlg.querySelector('#ff_print').onclick=()=>doSave(true);
+  }
+  draw();dlg.showModal();
+}
+function printFree(f){
+  const its=freeItens(f);
+  const heTot=its.reduce((s,i)=>s+(+i.he||0),0);
+  const money=v=>(+v||0).toFixed(2).replace('.',',');
+  const li=its.map(i=>{const sub=(+i.valor||0)+(+i.heValor||0);
+    return`<div style="margin:3px 0"><div><b>${fmtD(i.data)} ${dow(i.data)} — ${i.turno||''}</b>${i.funcao?' · '+String(i.funcao).toUpperCase():''}</div>
+    <div class="r">diaria ${money(i.valor)}${+i.he?' + HE '+i.he+'h ('+money(i.heValor)+')':''} = <b>${money(sub)}</b></div></div>`}).join('');
+  const w=window.open('','_blank','width=400,height=640');
+  if(!w){alert('Libere pop-ups para imprimir o recibo.');return}
+  w.document.write(`<html><head><title>Recibo ${f.nome}</title><style>
+  @page{size:80mm auto;margin:2mm}
+  body{font-family:'Courier New',monospace;font-size:12px;width:72mm;margin:0;color:#000;background:#fff}
+  h1{font-size:15px;text-align:center;margin:2px 0;letter-spacing:1px}
+  .c{text-align:center}.line{border-top:1px dashed #000;margin:5px 0}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  td,th{padding:1px 2px}th{text-align:left;border-bottom:1px solid #000}
+  .r{text-align:right}
+  .tot{font-size:14px;font-weight:bold;text-align:right;margin:4px 0}
+  .sig{margin-top:34px;border-top:1px solid #000;text-align:center;padding-top:3px;font-size:11px}
+  </style></head><body>
+  <h1>FOGO PARRILLA</h1>
+  <div class="c">RECIBO DE PAGAMENTO<br>FREELANCER</div>
+  <div class="line"></div>
+  <div>NOME: <b>${f.nome}</b></div>
+  <div>PAGAMENTO: ${fmtD(f.data)} — ${f.turno}</div>
+  <div class="line"></div>
+  ${li}
+  <div class="line"></div>
+  <div>Dias trabalhados: ${its.length}${heTot?' · Horas extras: '+heTot+'h':''}</div>
+  <div class="tot">TOTAL: ${fmt(freeTotal(f))}</div>
+  <div class="line"></div>
+  <div>Declaro que recebi a importancia acima descrita, nada mais tendo a receber pelos dias relacionados.</div>
+  <div class="sig">ASSINATURA — ${f.nome}</div>
+  <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
+  </body></html>`);
+  w.document.close();w.focus();
+  setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
+function freel(){
+  let rows=DB.freelancers.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
+  const q=(window._q||'').toLowerCase();
+  if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  const tot=r2(rows.reduce((s,f)=>s+freeTotal(f),0));
+  const groups={};rows.forEach(f=>{groups[f.nome]=(groups[f.nome]||0)+freeTotal(f)});
+  const top=Object.entries(groups).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">Pagamentos de freelancers</h2>
+    <span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span></span>
+    <input class="search" id="q" placeholder="🔍 buscar..." value="${window._q||''}">
+    <button class="btn" id="add">+ Novo pagamento</button></div>
+  <p class="muted" style="margin:0 0 10px">Para pagamento semanal, lance todos os dias/turnos trabalhados e as horas extras. O recibo sai na impressora térmica (bobina 80mm) com campo de assinatura, e o total entra no caixa do dia/turno do pagamento.</p>
+  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+    <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th></th></tr></thead><tbody>
+    ${rows.map(f=>{const its=freeItens(f);const heH=its.reduce((s,i)=>s+(+i.he||0),0);
+      return`<tr><td>${fmtD(f.data)} <span class="muted">${dow(f.data)}</span></td>
+      <td>${pillT(f)}</td><td>${f.nome}</td>
+      <td class="r" title="${its.map(i=>fmtD(i.data)+' '+(i.turno||'')+(i.funcao?' ('+i.funcao+')':'')).join(' · ')}">${its.length}</td>
+      <td class="r">${heH?heH+'h':'—'}</td>
+      <td class="r tot">${fmt(freeTotal(f))}</td>
+      <td><button class="btn mini sec" data-p="${f.id}" title="Imprimir recibo">🖨</button>
+          <button class="btn mini sec" data-e="${f.id}">✎</button>
+          <button class="btn mini danger" data-d="${f.id}">✕</button></td></tr>`}).join('')}
+    </tbody></table></div>
+    <div class="card"><div class="lbl">Total por pessoa</div>
+      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
+  </div>`;
+  document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
+    const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  const hoje=new Date().toISOString().slice(0,10);
+  document.getElementById('add').onclick=()=>freeForm('Novo pagamento de freelancer',
+    {data:hoje.slice(0,7)===MES?hoje:MES+'-01',turno:'DIA'},
+    (rec,print)=>{rec.id=uid();DB.freelancers.push(rec);save();render();if(print)printFree(rec)});
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const it=DB.freelancers.find(x=>x.id===b.dataset.e);
+    freeForm('Editar pagamento',it,(rec,print)=>{Object.assign(it,rec);save();render();if(print)printFree(it)})});
+  document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>printFree(DB.freelancers.find(x=>x.id===b.dataset.p)));
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('freelancers',b.dataset.d));
+}
+function assin(){listView({title:'Notas assinadas (consumo a pagar)',list:'assinadas',groupBy:'nome',addTitle:'✍️ Nova nota assinada',editTitle:'✍️ Editar nota assinada',
+  fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'nome',l:'Nome *',req:1},{k:'valor',l:'Valor *',t:'number',req:1}],
+  cols:[{l:'Data',f:r=>fmtD(r.data)},{l:'Turno',f:pillT},{l:'Nome',f:r=>r.nome},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
+
+// ================= importador CSV (NF-e / NFS-e) =================
+function parseCSV(text){
+  text=text.replace(/^﻿/,'');
+  const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}
+    else if(ch==='"')q=true;
+    else if(ch===','){row.push(cur);cur=''}
+    else if(ch==='\n'||ch==='\r'){if(cur!==''||row.length){row.push(cur);rows.push(row);row=[];cur=''}}
+    else cur+=ch;
+  }
+  if(cur!==''||row.length){row.push(cur);rows.push(row)}
+  return rows;
+}
+const brNum=s=>{const v=parseFloat(String(s).trim().replace(/\./g,'').replace(',','.'));return isNaN(v)?0:v};
+const brDate=s=>{const m=String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?`${m[3]}-${m[2]}-${m[1]}`:''};
+function importNfCSV(text){
+  const rows=parseCSV(text);
+  if(rows.length<2)return null;
+  const hdr=rows[0].map(h=>h.toLowerCase());
+  const idx=n=>hdr.findIndex(h=>h.includes(n));
+  let map,tipoDef;
+  if(idx('fornecedor')>=0&&idx('total')>=0){        // NF-e recebidas (produtos)
+    map={nf:idx('mero'),forn:idx('fornecedor'),data:idx('emiss'),val:idx('total'),status:idx('status')};
+    tipoDef='Custo';
+  }else if(idx('prestador')>=0){                    // NFS-e recebidas (serviços)
+    map={nf:Math.max(idx('mero'),0),forn:idx('prestador'),data:idx('emiss'),val:idx('valor'),status:-1};
+    tipoDef='Despesa';
+  }else return null;
+  let add=0,dup=0,skip=0;const meses=new Set();
+  for(const r of rows.slice(1)){
+    if(r.length<3)continue;
+    const st=map.status>=0?String(r[map.status]||''):'';
+    if(st&&!/autorizad/i.test(st)){skip++;continue}
+    const nf=String(r[map.nf]||'').trim(), forn=String(r[map.forn]||'').trim();
+    const data=brDate(r[map.data]), valor=r2(brNum(r[map.val]));
+    if(!forn||!valor){skip++;continue}
+    if(DB.nfs.some(x=>String(x.nf)===nf&&Math.abs((+x.valor||0)-valor)<0.01)){dup++;if(data)meses.add(data.slice(0,7));continue}
+    DB.nfs.push({id:uid(),nf,fornecedor:forn,produtos:'',tipo:tipoDef,data,valor,categoria:'',obs:''});
+    add++;if(data)meses.add(data.slice(0,7));
+  }
+  return{add,dup,skip,meses};
+}
+function readSmart(file){ // UTF-8, com fallback latin-1
+  return file.text().then(t=>{
+    if(!t.includes('�'))return t;
+    return new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsText(file,'iso-8859-1')});
+  });
+}
+async function handleNfImport(files){
+  let add=0,dup=0,skip=0,bad=[];const meses=new Set();
+  for(const f of files){
+    const r=importNfCSV(await readSmart(f));
+    if(!r){bad.push(f.name);continue}
+    add+=r.add;dup+=r.dup;skip+=r.skip;r.meses.forEach(m=>meses.add(m));
+  }
+  // pula para o mês das notas importadas
+  const alvo=[...meses].sort().reverse()[0];
+  if(alvo)MES=alvo;
+  save();drawMes();render();
+  const NM=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const nomeMes=m=>NM[+m.slice(5,7)-1]+'/'+m.slice(0,4);
+  let msg=`Importação concluída:\n• ${add} nota(s) adicionada(s)`;
+  if(dup)msg+=`\n• ${dup} ignorada(s) — já estavam lançadas`;
+  if(skip)msg+=`\n• ${skip} ignorada(s) — canceladas/sem valor`;
+  if(bad.length)msg+=`\n• Formato não reconhecido: ${bad.join(', ')}`;
+  if(alvo)msg+=`\n\nNotas do período de ${nomeMes(alvo)} — a tela foi ajustada para esse mês.`;
+  if(add)msg+='\nNF-e entram como Custo e NFS-e como Despesa — ajuste no ✎ se precisar.';
+  alert(msg);
+}
+
+// ================= NFs =================
+function nfs(){
+  let rows=DB.nfs.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
+  const q=(window._q||'').toLowerCase();
+  if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  const tot=sum(rows,r=>r.valor), custo=sum(rows.filter(r=>r.tipo==='Custo'),r=>r.valor), desp=tot-custo;
+  const fields=[{k:'nf',l:'Nº NF'},{k:'fornecedor',l:'Fornecedor *',req:1},{k:'produtos',l:'Produtos'},
+    {k:'tipo',l:'Custo × Despesa',opts:['Custo','Despesa']},{k:'data',l:'Data *',t:'date',req:1},
+    {k:'valor',l:'Valor *',t:'number',req:1},{k:'categoria',l:'Categoria'},{k:'obs',l:'Observações'}];
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">Notas fiscais</h2>
+    <span class="muted">${rows.length} NFs · <span class="tot">${fmt(tot)}</span> (Custo ${fmt(custo)} · Despesa ${fmt(desp)})</span>
+    <input class="search" id="q" placeholder="🔍 fornecedor, nº, categoria..." value="${window._q||''}">
+    <label class="btn sec" style="cursor:pointer">⬆ Importar CSV<input type="file" id="csvImp" accept=".csv" multiple hidden></label>
+    <button class="btn" id="add">+ Nova NF</button></div>
+  <div class="tw"><table><thead><tr><th>Data</th><th>Nº NF</th><th>Fornecedor</th><th>Produtos</th><th>Tipo</th><th class="r">Valor</th><th></th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.data?fmtD(r.data):'—'}</td><td class="muted">${r.nf||'—'}</td>
+      <td>${r.fornecedor}</td><td class="muted">${r.produtos||''}</td>
+      <td><span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span></td>
+      <td class="r tot">${fmt(r.valor)}</td>
+      <td><button class="btn mini sec" data-e="${r.id}">✎</button> <button class="btn mini danger" data-d="${r.id}">✕</button></td></tr>`).join('')}
+  </tbody></table></div>`;
+  document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
+    const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  document.getElementById('add').onclick=()=>openForm('Nova nota fiscal',fields,o=>{o.id=uid();DB.nfs.push(o);save();render()},{data:MES+'-01',tipo:'Custo'});
+  document.getElementById('csvImp').onchange=e=>{if(e.target.files.length)handleNfImport([...e.target.files])};
+  wireEdit('nfs',fields,'Editar nota fiscal');
+}
+
+// ================= util bar (backup) =================
+function footer(){
+  const f=document.createElement('div');f.className='bar';f.style.margin='26px 0 10px';
+  f.innerHTML=`<span class="muted">Dados salvos automaticamente neste navegador.</span>
+   <button class="btn sec mini" id="exp">⬇ Exportar backup</button>
+   <label class="btn sec mini" style="cursor:pointer">⬆ Importar<input type="file" id="imp" accept=".json" hidden></label>
+   <button class="btn danger mini" id="rst">Restaurar planilha original</button>`;
+  document.getElementById('main').appendChild(f);
+  f.querySelector('#exp').onclick=()=>{
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));
+    a.download='fogo-parrilla-backup.json';a.click();
+  };
+  f.querySelector('#imp').onchange=e=>{
+    const fl=e.target.files[0];if(!fl)return;
+    fl.text().then(t=>{try{DB=JSON.parse(t);migrate();save();drawMes();render()}catch(err){alert('Arquivo inválido.')}});
+  };
+  f.querySelector('#rst').onclick=()=>{
+    if(!confirm('Isso apaga todos os lançamentos feitos no app e volta aos dados da planilha de julho. Continuar?'))return;
+    localStorage.removeItem(KEY);load();
+    ['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>DB[k].forEach(x=>x.id=x.id||uid()));
+    migrate();save();drawMes();render();
+  };
+}
+
+// ================= router =================
+const views={dash,caixa,compras,freel,assin,nfs};
+function render(){
+  try{views[tab]();footer()}
+  catch(e){document.getElementById('main').innerHTML=
+    `<div class="card"><b style="color:var(--bad)">Erro ao montar a tela "${tab}":</b> ${e.message}
+     <br><span class="muted">Tire um print desta mensagem. Seus dados estão salvos.</span></div>`}
+}
+document.getElementById('nav').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  window._q='';
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  tab=b.dataset.t;render();
+};
+drawMes();render();
+</script>
+</body>
+</html>
