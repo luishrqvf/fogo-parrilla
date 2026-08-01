@@ -487,7 +487,67 @@ function freeForm(title,init,onOk){
   }
   draw();dlg.showModal();
 }
+// ---- VALE TRANSPORTE ----
+const isVT=f=>f.tipo==='VT';
+function vtForm(title,init,onOk){
+  const dlg=document.getElementById('dlg');dlg.classList.remove('wide');
+  const nomes=[...new Set(DB.freelancers.map(f=>f.nome).filter(Boolean))].sort();
+  dlg.innerHTML=`<datalist id="vtnomes">${nomes.map(n=>`<option value="${n}">`).join('')}</datalist>
+  <h3>🚌 ${title}</h3>
+  <div class="fgrid">
+    <label>Nome do funcionário *<input id="vt_nome" list="vtnomes" value="${init.nome||''}"></label>
+    <label>Dia *<input type="date" id="vt_data" value="${init.data||MES+'-01'}"></label>
+    <label>Turno<select id="vt_turno"><option ${init.turno!=='NOITE'?'selected':''}>DIA</option><option ${init.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
+    <label>Valor R$ *<input type="number" step="0.01" min="0" id="vt_valor" value="${init.valor||''}"></label>
+  </div>
+  <div class="dlgbar">
+    <button class="btn sec" id="vt_cancel">Cancelar</button>
+    <button class="btn sec" id="vt_save">Salvar</button>
+    <button class="btn" id="vt_print">💾 Salvar e imprimir 🖨</button>
+  </div>`;
+  dlg.showModal();
+  dlg.querySelector('#vt_cancel').onclick=()=>dlg.close();
+  const doSave=print=>{
+    const nome=dlg.querySelector('#vt_nome').value.trim();
+    const data=dlg.querySelector('#vt_data').value;
+    const valor=parseFloat(dlg.querySelector('#vt_valor').value)||0;
+    if(!nome||!data||!valor){alert('Preencha nome, dia e valor.');return}
+    dlg.close();
+    onOk({tipo:'VT',nome:nome.toUpperCase(),data,turno:dlg.querySelector('#vt_turno').value,valor:r2(valor)},print);
+  };
+  dlg.querySelector('#vt_save').onclick=()=>doSave(false);
+  dlg.querySelector('#vt_print').onclick=()=>doSave(true);
+  setTimeout(()=>dlg.querySelector('#vt_nome').focus(),60);
+}
+function printVT(f){
+  const w=window.open('','_blank','width=400,height=560');
+  if(!w){alert('Libere pop-ups para imprimir o recibo.');return}
+  w.document.write(`<html><head><title>Vale transporte ${f.nome}</title><style>
+  @page{size:80mm auto;margin:2mm}
+  body{font-family:'Courier New',monospace;font-size:12px;width:72mm;margin:0;color:#000;background:#fff}
+  h1{font-size:15px;text-align:center;margin:2px 0;letter-spacing:1px}
+  .c{text-align:center}.line{border-top:1px dashed #000;margin:5px 0}
+  .tot{font-size:15px;font-weight:bold;text-align:center;margin:6px 0}
+  .sig{margin-top:36px;border-top:1px solid #000;text-align:center;padding-top:3px;font-size:11px}
+  </style></head><body>
+  <h1>FOGO PARRILLA</h1>
+  <div class="c">RECIBO DE VALE TRANSPORTE</div>
+  <div class="line"></div>
+  <div>NOME: <b>${f.nome}</b></div>
+  <div>DIA: ${fmtD(f.data)} ${dow(f.data)}</div>
+  <div>TURNO: ${f.turno||''}</div>
+  <div class="line"></div>
+  <div class="tot">VALE TRANSPORTE<br>${fmt(f.valor)}</div>
+  <div class="line"></div>
+  <div>Declaro que recebi o valor acima referente ao vale transporte do dia e turno indicados.</div>
+  <div class="sig">ASSINATURA — ${f.nome}</div>
+  <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
+  </body></html>`);
+  w.document.close();w.focus();
+  setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
 function printFree(f){
+  if(isVT(f))return printVT(f);
   const its=freeItens(f);
   const heTot=its.reduce((s,i)=>s+(+i.he||0),0);
   const money=v=>(+v||0).toFixed(2).replace('.',',');
@@ -536,15 +596,17 @@ function freel(){
   <div class="bar"><h2 style="margin:0">Pagamentos de freelancers</h2>
     <span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span></span>
     <input class="search" id="q" placeholder="🔍 buscar..." value="${window._q||''}">
+    <button class="btn sec" id="addVT">🚌 Vale transporte</button>
     <button class="btn" id="add">+ Novo pagamento</button></div>
   <p class="muted" style="margin:0 0 10px">Para pagamento semanal, lance todos os dias/turnos trabalhados e as horas extras. O recibo sai na impressora térmica (bobina 80mm) com campo de assinatura, e o total entra no caixa do dia/turno do pagamento.</p>
   <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
-    <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th></th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th>Tipo</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th></th></tr></thead><tbody>
     ${rows.map(f=>{const its=freeItens(f);const heH=its.reduce((s,i)=>s+(+i.he||0),0);
       return`<tr><td>${fmtD(f.data)} <span class="muted">${dow(f.data)}</span></td>
       <td>${pillT(f)}</td><td>${f.nome}</td>
-      <td class="r" title="${its.map(i=>fmtD(i.data)+' '+(i.turno||'')+(i.funcao?' ('+i.funcao+')':'')).join(' · ')}">${its.length}</td>
-      <td class="r">${heH?heH+'h':'—'}</td>
+      <td>${isVT(f)?'<span class="pill d">🚌 VALE TRANSP.</span>':'<span class="pill c">DIÁRIA</span>'}</td>
+      <td class="r" title="${isVT(f)?'':its.map(i=>fmtD(i.data)+' '+(i.turno||'')+(i.funcao?' ('+i.funcao+')':'')).join(' · ')}">${isVT(f)?'—':its.length}</td>
+      <td class="r">${heH&&!isVT(f)?heH+'h':'—'}</td>
       <td class="r tot">${fmt(freeTotal(f))}</td>
       <td><button class="btn mini sec" data-p="${f.id}" title="Imprimir recibo">🖨</button>
           <button class="btn mini sec" data-e="${f.id}">✎</button>
@@ -559,9 +621,13 @@ function freel(){
   document.getElementById('add').onclick=()=>freeForm('Novo pagamento de freelancer',
     {data:hoje.slice(0,7)===MES?hoje:MES+'-01',turno:'DIA'},
     (rec,print)=>{rec.id=uid();rec.mt=Date.now();DB.freelancers.push(rec);save();render();if(print)printFree(rec)});
+  document.getElementById('addVT').onclick=()=>vtForm('Novo vale transporte',
+    {data:hoje.slice(0,7)===MES?hoje:MES+'-01',turno:'DIA'},
+    (rec,print)=>{rec.id=uid();rec.mt=Date.now();DB.freelancers.push(rec);save();render();if(print)printVT(rec)});
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
     const it=DB.freelancers.find(x=>x.id===b.dataset.e);
-    freeForm('Editar pagamento',it,(rec,print)=>{Object.assign(it,rec);it.mt=Date.now();save();render();if(print)printFree(it)})});
+    if(isVT(it))vtForm('Editar vale transporte',it,(rec,print)=>{Object.assign(it,rec);it.mt=Date.now();save();render();if(print)printVT(it)});
+    else freeForm('Editar pagamento',it,(rec,print)=>{Object.assign(it,rec);it.mt=Date.now();save();render();if(print)printFree(it)})});
   document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>printFree(DB.freelancers.find(x=>x.id===b.dataset.p)));
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('freelancers',b.dataset.d));
 }
