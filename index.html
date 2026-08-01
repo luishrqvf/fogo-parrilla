@@ -111,7 +111,7 @@ const r2=v=>Math.round(v*100)/100;
 function linked(c){
   const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
   return{
-    free:DB.freelancers.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
+    free:DB.freelancers.filter(x=>m(x)&&!x.pix).reduce((s,x)=>s+(+x.valor||0),0),
     assin:DB.assinadas.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
     custo:DB.compras.filter(x=>m(x)&&x.tipo==='Custo').reduce((s,x)=>s+(+x.valor||0),0),
     desp:DB.compras.filter(x=>m(x)&&x.tipo!=='Custo').reduce((s,x)=>s+(+x.valor||0),0)
@@ -289,7 +289,7 @@ function caixaTxt(c){
   L.push(`Diferença: ${fmt(c.dif)}`);
   const mov=[];
   if(mv.compras.length)mov.push('🛒 Compras: '+mv.compras.map(x=>`${x.fornecedor} ${fmt(x.valor)}`).join(', '));
-  if(mv.freel.length)mov.push('👷 Freelancers: '+mv.freel.map(x=>`${x.nome} ${fmt(freeTotal(x))}`).join(', '));
+  if(mv.freel.length)mov.push('👷 Freelancers: '+mv.freel.map(x=>`${x.nome} ${fmt(freeTotal(x))}${x.pix?' (PIX)':''}`).join(', '));
   if(mv.assin.length)mov.push('✍️ Assinadas: '+mv.assin.map(x=>`${x.nome} ${fmt(x.valor)}`).join(', '));
   if(mov.length){L.push('','*MOVIMENTOS*');mov.forEach(x=>L.push(x))}
   return L.join('\n');
@@ -301,7 +301,7 @@ function printCaixa(c){
   const ln=(l,v,b)=>`<div style="display:flex;justify-content:space-between">${b?'<b>'+l+'</b>':l}<span>${b?'<b>'+money(v)+'</b>':money(v)}</span></div>`;
   let mov='';
   if(mv.compras.length)mov+=`<div class="line"></div><div><b>COMPRAS</b></div>`+mv.compras.map(x=>ln(x.fornecedor+' ('+x.tipo+')',x.valor)).join('');
-  if(mv.freel.length)mov+=`<div class="line"></div><div><b>FREELANCERS</b></div>`+mv.freel.map(x=>ln(x.nome,freeTotal(x))).join('');
+  if(mv.freel.length)mov+=`<div class="line"></div><div><b>FREELANCERS</b></div>`+mv.freel.map(x=>ln(x.nome+(x.pix?' (PIX)':''),freeTotal(x))).join('');
   if(mv.assin.length)mov+=`<div class="line"></div><div><b>NOTAS ASSINADAS</b></div>`+mv.assin.map(x=>ln(x.nome,x.valor)).join('');
   const w=window.open('','_blank','width=400,height=680');
   if(!w){alert('Libere pop-ups para imprimir o relatório.');return}
@@ -439,6 +439,9 @@ function freeForm(title,init,onOk){
       <label>Nome *<input id="ff_nome" value="${init.nome||''}"></label>
       <label>Data do pagamento *<input id="ff_data" type="date" value="${init.data||MES+'-01'}"></label>
       <label>Turno do caixa<select id="ff_turno"><option ${init.turno!=='NOITE'?'selected':''}>DIA</option><option ${init.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
+      <label style="justify-content:flex-end"><span style="display:flex;align-items:center;gap:6px;color:var(--tx);font-size:14px;padding:8px 0">
+        <input type="checkbox" id="ff_pix" ${init.pix?'checked':''} style="width:16px;height:16px"> Pago via PIX</span>
+        <span class="muted" style="font-size:11px">não sai do caixa</span></label>
     </div>
     <div class="muted" style="margin-bottom:6px">Dias e turnos trabalhados (HE = horas extras):</div>
     <div style="overflow:auto;max-height:40vh"><table><thead><tr><th>Dia</th><th>Turno</th><th>Função</th><th class="r">Diária R$</th><th class="r">HE (h)</th><th class="r">HE R$</th><th></th></tr></thead><tbody>
@@ -478,7 +481,8 @@ function freeForm(title,init,onOk){
       if(!nome||!data){alert('Preencha nome e data do pagamento.');return}
       const clean=itens.filter(i=>i.data);
       if(!clean.length){alert('Lance ao menos um dia trabalhado.');return}
-      const rec={nome:nome.toUpperCase(),data,turno:dlg.querySelector('#ff_turno').value,itens:clean,
+      const rec={nome:nome.toUpperCase(),data,turno:dlg.querySelector('#ff_turno').value,
+                 pix:dlg.querySelector('#ff_pix').checked,itens:clean,
                  valor:r2(clean.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0))};
       dlg.close();onOk(rec,print);
     };
@@ -499,6 +503,9 @@ function vtForm(title,init,onOk){
     <label>Dia *<input type="date" id="vt_data" value="${init.data||MES+'-01'}"></label>
     <label>Turno<select id="vt_turno"><option ${init.turno!=='NOITE'?'selected':''}>DIA</option><option ${init.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
     <label>Valor R$ *<input type="number" step="0.01" min="0" id="vt_valor" value="${init.valor||''}"></label>
+    <label style="justify-content:flex-end"><span style="display:flex;align-items:center;gap:6px;color:var(--tx);font-size:14px;padding:8px 0">
+      <input type="checkbox" id="vt_pix" ${init.pix?'checked':''} style="width:16px;height:16px"> Pago via PIX</span>
+      <span class="muted" style="font-size:11px">não sai do caixa</span></label>
   </div>
   <div class="dlgbar">
     <button class="btn sec" id="vt_cancel">Cancelar</button>
@@ -513,7 +520,8 @@ function vtForm(title,init,onOk){
     const valor=parseFloat(dlg.querySelector('#vt_valor').value)||0;
     if(!nome||!data||!valor){alert('Preencha nome, dia e valor.');return}
     dlg.close();
-    onOk({tipo:'VT',nome:nome.toUpperCase(),data,turno:dlg.querySelector('#vt_turno').value,valor:r2(valor)},print);
+    onOk({tipo:'VT',nome:nome.toUpperCase(),data,turno:dlg.querySelector('#vt_turno').value,
+          pix:dlg.querySelector('#vt_pix').checked,valor:r2(valor)},print);
   };
   dlg.querySelector('#vt_save').onclick=()=>doSave(false);
   dlg.querySelector('#vt_print').onclick=()=>doSave(true);
@@ -538,6 +546,7 @@ function printVT(f){
   <div>TURNO: ${f.turno||''}</div>
   <div class="line"></div>
   <div class="tot">VALE TRANSPORTE<br>${fmt(f.valor)}</div>
+  <div class="c">FORMA DE PAGAMENTO: ${f.pix?'PIX':'DINHEIRO'}</div>
   <div class="line"></div>
   <div>Declaro que recebi o valor acima referente ao vale transporte do dia e turno indicados.</div>
   <div class="sig">ASSINATURA — ${f.nome}</div>
@@ -577,6 +586,7 @@ function printFree(f){
   <div class="line"></div>
   <div>Dias trabalhados: ${its.length}${heTot?' · Horas extras: '+heTot+'h':''}</div>
   <div class="tot">TOTAL: ${fmt(freeTotal(f))}</div>
+  <div class="c">FORMA DE PAGAMENTO: ${f.pix?'PIX':'DINHEIRO'}</div>
   <div class="line"></div>
   <div>Declaro que recebi a importancia acima descrita, nada mais tendo a receber pelos dias relacionados.</div>
   <div class="sig">ASSINATURA — ${f.nome}</div>
@@ -594,7 +604,7 @@ function freel(){
   const top=Object.entries(groups).sort((a,b)=>b[1]-a[1]);
   document.getElementById('main').innerHTML=`
   <div class="bar"><h2 style="margin:0">Pagamentos de freelancers</h2>
-    <span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span></span>
+    <span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span>${(()=>{const p=r2(rows.filter(f=>f.pix).reduce((s,f)=>s+freeTotal(f),0));return p?' · sendo '+fmt(p)+' em PIX (fora do caixa)':''})()}</span>
     <input class="search" id="q" placeholder="🔍 buscar..." value="${window._q||''}">
     <button class="btn sec" id="addVT">🚌 Vale transporte</button>
     <button class="btn" id="add">+ Novo pagamento</button></div>
@@ -604,7 +614,8 @@ function freel(){
     ${rows.map(f=>{const its=freeItens(f);const heH=its.reduce((s,i)=>s+(+i.he||0),0);
       return`<tr><td>${fmtD(f.data)} <span class="muted">${dow(f.data)}</span></td>
       <td>${pillT(f)}</td><td>${f.nome}</td>
-      <td>${isVT(f)?'<span class="pill d">🚌 VALE TRANSP.</span>':'<span class="pill c">DIÁRIA</span>'}</td>
+      <td>${isVT(f)?'<span class="pill d">🚌 VALE TRANSP.</span>':'<span class="pill c">DIÁRIA</span>'}
+          ${f.pix?'<span class="pill d" title="Pago via PIX — não sai do caixa">PIX</span>':''}</td>
       <td class="r" title="${isVT(f)?'':its.map(i=>fmtD(i.data)+' '+(i.turno||'')+(i.funcao?' ('+i.funcao+')':'')).join(' · ')}">${isVT(f)?'—':its.length}</td>
       <td class="r">${heH&&!isVT(f)?heH+'h':'—'}</td>
       <td class="r tot">${fmt(freeTotal(f))}</td>
