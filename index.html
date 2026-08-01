@@ -73,6 +73,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
   <h1>FOGO <span>PARRILLA</span> <span class="muted" style="font-weight:400">· gestão financeira · v3</span></h1>
   <select id="mes"></select>
   <button id="themeBtn" class="btn sec" title="Alternar tema" style="padding:7px 11px">☀️</button>
+  <button id="lockBtn" class="btn sec" title="Bloquear tela" style="padding:7px 11px">🔒</button>
 </header>
 <nav id="nav">
   <button data-t="dash" class="on">📊 Dashboard</button>
@@ -683,7 +684,11 @@ function footer(){
   };
   f.querySelector('#imp').onchange=e=>{
     const fl=e.target.files[0];if(!fl)return;
-    fl.text().then(t=>{try{DB=JSON.parse(t);migrate();save();drawMes();render()}catch(err){alert('Arquivo inválido.')}});
+    fl.text().then(t=>{
+      let nd;try{nd=JSON.parse(t)}catch(err){alert('Arquivo inválido.');return}
+      askImportMode(nd);
+    });
+    e.target.value='';
   };
   f.querySelector('#rst').onclick=()=>{
     if(!confirm('Isso apaga todos os lançamentos feitos no app e volta aos dados da planilha de julho. Continuar?'))return;
@@ -691,6 +696,58 @@ function footer(){
     ['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>DB[k].forEach(x=>x.id=x.id||uid()));
     migrate();save();drawMes();render();
   };
+}
+
+// ================= importação de backup (mesclar/substituir) =================
+function askImportMode(nd){
+  const dlg=document.getElementById('dlg');dlg.classList.remove('wide');
+  dlg.innerHTML=`<h3>⬆ Importar backup</h3>
+  <p style="margin-bottom:14px">Como deseja importar os dados do arquivo?</p>
+  <div class="dlgbar" style="justify-content:flex-start;flex-wrap:wrap">
+    <button class="btn" id="im_merge">🔀 Mesclar (recomendado)</button>
+    <button class="btn sec" id="im_replace">♻ Substituir tudo</button>
+    <button class="btn sec" id="im_cancel">Cancelar</button></div>
+  <p class="muted" style="margin-top:12px"><b>Mesclar:</b> mantém o que já está neste aparelho e adiciona apenas os lançamentos novos do arquivo (sem duplicar).<br>
+  <b>Substituir:</b> apaga os dados deste aparelho e usa somente o que está no arquivo.</p>`;
+  dlg.showModal();
+  dlg.querySelector('#im_cancel').onclick=()=>dlg.close();
+  dlg.querySelector('#im_replace').onclick=()=>{dlg.close();
+    if(!confirm('Tem certeza? TODOS os dados deste aparelho serão substituídos pelos do arquivo.'))return;
+    DB=nd;['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
+    migrate();save();drawMes();render();alert('Backup importado (substituição completa).')};
+  dlg.querySelector('#im_merge').onclick=()=>{dlg.close();mergeDB(nd)};
+}
+function mergeDB(nd){
+  const inc={caixa:nd.caixa||[],compras:nd.compras||[],freelancers:nd.freelancers||[],assinadas:nd.assinadas||[],nfs:nd.nfs||[]};
+  if(nd.version!==2){ // converte arquivo antigo: valores do caixa viram ajuste avulso
+    const lk=c=>{const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
+      return{free:inc.freelancers.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
+             assin:inc.assinadas.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
+             custo:inc.compras.filter(x=>m(x)&&x.tipo==='Custo').reduce((s,x)=>s+(+x.valor||0),0),
+             desp:inc.compras.filter(x=>m(x)&&x.tipo!=='Custo').reduce((s,x)=>s+(+x.valor||0),0)}};
+    inc.caixa.forEach(c=>{if(c.custoMan!==undefined)return;const l=lk(c);
+      c.custoMan=r2((+c.custo||0)-l.custo);c.despMan=r2((+c.desp||0)-l.desp);
+      c.freeMan=r2((+c.free||0)-l.free);c.assinMan=r2((+c.assin||0)-l.assin);
+      delete c.custo;delete c.desp;delete c.free;delete c.assin});
+  }
+  const key={
+    caixa:x=>'c|'+x.data+'|'+(x.turno||''),
+    compras:x=>['p',x.data,x.turno,x.fornecedor,(+x.valor||0).toFixed(2)].join('|'),
+    freelancers:x=>['f',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
+    assinadas:x=>['a',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
+    nfs:x=>['n',x.nf,(+x.valor||0).toFixed(2)].join('|')};
+  let add=0,skip=0;
+  for(const k in key){
+    DB[k]=DB[k]||[];
+    const have=new Set(DB[k].map(key[k]));
+    for(const rec of inc[k]){
+      const kk=key[k](rec);
+      if(have.has(kk)){skip++;continue}
+      rec.id=uid();DB[k].push(rec);have.add(kk);add++;
+    }
+  }
+  DB.version=2;save();drawMes();render();
+  alert(`Mesclagem concluída:\n• ${add} lançamento(s) adicionado(s)\n• ${skip} já existiam neste aparelho e foram mantidos como estão`);
 }
 
 // ================= router =================
@@ -708,6 +765,62 @@ document.getElementById('nav').onclick=e=>{
   tab=b.dataset.t;render();
 };
 drawMes();render();
+
+// ================= senha de acesso (por aparelho) =================
+const PKEY='fogoPass';
+async function sha(t){
+  try{
+    if(crypto&&crypto.subtle){
+      const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('fogo|'+t));
+      return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+    }
+  }catch(e){}
+  let h=0;for(const ch of 'fogo|'+t){h=(h*31+ch.charCodeAt(0))>>>0}return'x'+h;
+}
+function lockScreen(){
+  if(document.getElementById('lock'))return;
+  let saved=null;try{saved=localStorage.getItem(PKEY)}catch(e){}
+  const has=!!saved;
+  const ov=document.createElement('div');ov.id='lock';
+  ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center';
+  ov.innerHTML=`<div class="card" style="width:min(92vw,360px);text-align:center">
+    <div style="font-size:34px">🔥</div><h3 style="margin:8px 0;color:var(--fire2)">FOGO PARRILLA</h3>
+    <p class="muted" style="margin-bottom:12px">${has?'Digite a senha de acesso':'Primeiro acesso neste aparelho: defina uma senha'}</p>
+    <input type="password" id="pw1" placeholder="Senha" style="width:100%;margin-bottom:8px">
+    ${has?'':'<input type="password" id="pw2" placeholder="Confirmar senha" style="width:100%;margin-bottom:8px">'}
+    <button class="btn" id="pwOk" style="width:100%">${has?'Entrar':'Definir senha e entrar'}</button>
+    <div id="pwMsg" style="margin-top:8px;min-height:16px;color:var(--bad);font-size:13px"></div>
+    ${has?'<button class="btn sec mini" id="pwForgot" style="margin-top:4px">Esqueci a senha</button>':''}
+  </div>`;
+  document.body.appendChild(ov);
+  const msg=t=>ov.querySelector('#pwMsg').textContent=t;
+  const go=async()=>{
+    const v=ov.querySelector('#pw1').value;
+    if(!v){msg('Digite a senha.');return}
+    if(has){
+      if(await sha(v)===saved)ov.remove();
+      else msg('Senha incorreta.');
+    }else{
+      const v2=ov.querySelector('#pw2').value;
+      if(v.length<4){msg('Use pelo menos 4 caracteres.');return}
+      if(v!==v2){msg('As senhas não conferem.');return}
+      try{localStorage.setItem(PKEY,await sha(v))}catch(e){}
+      ov.remove();
+    }
+  };
+  ov.querySelector('#pwOk').onclick=go;
+  ov.querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')go()});
+  const fg=ov.querySelector('#pwForgot');
+  if(fg)fg.onclick=()=>{
+    if(confirm('Por segurança, redefinir a senha APAGA todos os lançamentos deste aparelho (depois é só importar um backup). Continuar?')){
+      try{localStorage.removeItem(PKEY);localStorage.removeItem(KEY)}catch(e){}
+      location.reload();
+    }
+  };
+  setTimeout(()=>{const i=ov.querySelector('#pw1');i&&i.focus()},80);
+}
+document.getElementById('lockBtn').onclick=lockScreen;
+lockScreen();
 </script>
 </body>
 </html>
