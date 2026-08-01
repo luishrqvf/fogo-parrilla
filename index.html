@@ -133,7 +133,10 @@ function migrate(){
   });
   DB.version=2;
 }
-migrate();save();
+function normalize(){ // campo "táxi" passou a se chamar "retirada"
+  (DB.caixa||[]).forEach(c=>{if(c.taxi!==undefined){if(c.retirada===undefined)c.retirada=c.taxi;delete c.taxi}});
+}
+migrate();normalize();save();
 
 // ---- tema ----
 const TKEY='fogoTheme';
@@ -199,7 +202,7 @@ function dash(){
   const cx=DB.caixa.filter(inMes);
   const fat=sum(cx,c=>c.fat+c.ifood+c.whats);
   const din=sum(cx,c=>c.din), cart=sum(cx,c=>c.cart), ifood=sum(cx,c=>c.ifood), whats=sum(cx,c=>c.whats);
-  const saidas=sum(cx,c=>{const e=eff(c);return e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0)});
+  const saidas=sum(cx,c=>{const e=eff(c);return e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0)});
   const nfs=DB.nfs.filter(inMes);
   const nfTot=sum(nfs,n=>n.valor);
   const freeTot=sum(DB.freelancers.filter(inMes),f=>f.valor);
@@ -248,12 +251,12 @@ const CXF=[
   {k:'supr',l:'Suprimento',t:'number'},{k:'din',l:'Dinheiro',t:'number'},
   {k:'cart',l:'PIX/Cartão',t:'number'},{k:'assinMan',l:'Assinadas — ajuste avulso',t:'number'},
   {k:'custoMan',l:'Custo — ajuste avulso',t:'number'},{k:'despMan',l:'Despesa — ajuste avulso',t:'number'},
-  {k:'freeMan',l:'Freelancer — ajuste avulso',t:'number'},{k:'taxi',l:'Táxi',t:'number'},
+  {k:'freeMan',l:'Freelancer — ajuste avulso',t:'number'},{k:'retirada',l:'Retirada',t:'number'},
   {k:'moto',l:'Moto',t:'number'},{k:'cxFin',l:'Caixa final (contado)',t:'number'}];
 // DIFERENÇA = caixa inicial + dinheiro + suprimento − saídas − notas assinadas − caixa final
 function difCx(c){
   const e=eff(c);
-  const sai=e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0);
+  const sai=e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0);
   return r2((+c.cxIni||0)+(+c.din||0)+(+c.supr||0)-sai-e.assin-(+c.cxFin||0));
 }
 // ---- relatório do turno (impressão + WhatsApp) ----
@@ -270,7 +273,7 @@ function copyText(t,ok){
 }
 function caixaTxt(c){
   const e=eff(c),mv=caixaMovs(c);
-  const sai=r2(e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0));
+  const sai=r2(e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0));
   const L=[];
   L.push('*FOGO PARRILLA — FECHAMENTO DE CAIXA*');
   L.push(`📅 ${fmtD(c.data)} ${dow(c.data)} — turno ${c.turno}`);
@@ -288,7 +291,7 @@ function caixaTxt(c){
   if(e.custo)L.push(`Custo: ${fmt(e.custo)}`);
   if(e.desp)L.push(`Despesa: ${fmt(e.desp)}`);
   if(e.free)L.push(`Freelancer: ${fmt(e.free)}`);
-  if(+c.taxi)L.push(`Táxi: ${fmt(c.taxi)}`);
+  if(+c.retirada)L.push(`Retirada: ${fmt(c.retirada)}`);
   if(+c.moto)L.push(`Moto: ${fmt(c.moto)}`);
   L.push('',`*Caixa final: ${fmt(c.cxFin)}*`);
   L.push(`Diferença: ${fmt(difCx(c))}`);
@@ -302,7 +305,7 @@ function caixaTxt(c){
 function printCaixa(c){
   const e=eff(c),mv=caixaMovs(c);
   const money=v=>(+v||0).toFixed(2).replace('.',',');
-  const sai=r2(e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0));
+  const sai=r2(e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0));
   const ln=(l,v,b)=>`<div style="display:flex;justify-content:space-between">${b?'<b>'+l+'</b>':l}<span>${b?'<b>'+money(v)+'</b>':money(v)}</span></div>`;
   let mov='';
   if(mv.compras.length)mov+=`<div class="line"></div><div><b>COMPRAS</b></div>`+mv.compras.map(x=>ln(x.fornecedor+' ('+x.tipo+')',x.valor)).join('');
@@ -336,7 +339,7 @@ function printCaixa(c){
   ${e.custo?ln('Custo',e.custo):''}
   ${e.desp?ln('Despesa',e.desp):''}
   ${e.free?ln('Freelancer',e.free):''}
-  ${+c.taxi?ln('Taxi',c.taxi):''}
+  ${+c.retirada?ln('Retirada',c.retirada):''}
   ${+c.moto?ln('Moto',c.moto):''}
   <div class="line"></div>
   ${ln('CAIXA FINAL',c.cxFin,1)}
@@ -358,9 +361,9 @@ function caixa(){
   <p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>
   <div class="tw"><table><thead><tr>
     <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th><th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
-    <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th><th class="r">Saídas</th>
+    <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th><th class="r">Retirada</th><th class="r">Moto</th><th class="r">Saídas</th>
     <th class="r">Cx final</th><th class="r">Difer.</th><th></th></tr></thead><tbody>
-    ${rows.map(c=>{const e=eff(c);const sai=e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0);
+    ${rows.map(c=>{const e=eff(c);const sai=e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0);
       const tip=(v,man,lk)=>`title="lançamentos: ${fmt(lk)} + avulso: ${fmt(man||0)}"`;return`<tr>
       <td>${fmtD(c.data)} <span class="muted">${dow(c.data)}</span></td>
       <td><span class="pill ${c.turno==='DIA'?'dia':'noite'}">${c.turno}</span></td>
@@ -372,6 +375,8 @@ function caixa(){
       <td class="r" ${tip(e.custo,c.custoMan,e.l.custo)}>${e.custo?fmt(e.custo):'—'}</td>
       <td class="r" ${tip(e.desp,c.despMan,e.l.desp)}>${e.desp?fmt(e.desp):'—'}</td>
       <td class="r" ${tip(e.free,c.freeMan,e.l.free)}>${e.free?fmt(e.free):'—'}</td>
+      <td class="r">${+c.retirada?fmt(c.retirada):'—'}</td>
+      <td class="r">${+c.moto?fmt(c.moto):'—'}</td>
       <td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>
       <td class="r">${fmt(c.cxFin)}</td>
       <td class="r ${Math.abs(difCx(c))>1?'neg':'muted'}" title="Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final">${fmt(difCx(c))}</td>
@@ -779,7 +784,7 @@ function footer(){
     if(!confirm('Isso apaga todos os lançamentos feitos no app e volta aos dados da planilha de julho. Continuar?'))return;
     localStorage.removeItem(KEY);load();
     ['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>DB[k].forEach(x=>x.id=x.id||uid()));
-    migrate();save();drawMes();render();
+    migrate();normalize();save();drawMes();render();
   };
 }
 
@@ -799,7 +804,7 @@ function askImportMode(nd){
   dlg.querySelector('#im_replace').onclick=()=>{dlg.close();
     if(!confirm('Tem certeza? TODOS os dados deste aparelho serão substituídos pelos do arquivo.'))return;
     DB=nd;['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
-    migrate();save();drawMes();render();alert('Backup importado (substituição completa).')};
+    migrate();normalize();save();drawMes();render();alert('Backup importado (substituição completa).')};
   dlg.querySelector('#im_merge').onclick=()=>{dlg.close();mergeDB(nd)};
 }
 function mergeDB(nd){
@@ -831,7 +836,7 @@ function mergeDB(nd){
       rec.id=uid();rec.mt=rec.mt||Date.now();DB[k].push(rec);have.add(kk);add++;
     }
   }
-  DB.version=2;save();drawMes();render();
+  DB.version=2;normalize();save();drawMes();render();
   alert(`Mesclagem concluída:\n• ${add} lançamento(s) adicionado(s)\n• ${skip} já existiam neste aparelho e foram mantidos como estão`);
 }
 
@@ -929,7 +934,7 @@ async function syncNow(interactive){
     const{data:row,error}=await sb.from('app_state').select('data').eq('user_id',u.id).maybeSingle();
     if(error)throw error;
     if(row&&row.data)DB=mergeStates(DB,row.data);
-    DB.version=2;_save();
+    DB.version=2;normalize();_save();
     const{error:e2}=await sb.from('app_state').upsert({user_id:u.id,data:DB,updated_at:new Date().toISOString()});
     if(e2)throw e2;
     syncStat('🟢 sincronizado','var(--ok)');
