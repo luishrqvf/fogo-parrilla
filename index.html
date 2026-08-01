@@ -249,8 +249,13 @@ const CXF=[
   {k:'cart',l:'PIX/Cartão',t:'number'},{k:'assinMan',l:'Assinadas — ajuste avulso',t:'number'},
   {k:'custoMan',l:'Custo — ajuste avulso',t:'number'},{k:'despMan',l:'Despesa — ajuste avulso',t:'number'},
   {k:'freeMan',l:'Freelancer — ajuste avulso',t:'number'},{k:'taxi',l:'Táxi',t:'number'},
-  {k:'moto',l:'Moto',t:'number'},{k:'cxFin',l:'Caixa final (contado)',t:'number'},
-  {k:'dif',l:'Diferença',t:'number'}];
+  {k:'moto',l:'Moto',t:'number'},{k:'cxFin',l:'Caixa final (contado)',t:'number'}];
+// DIFERENÇA = caixa inicial + dinheiro + suprimento − saídas − notas assinadas − caixa final
+function difCx(c){
+  const e=eff(c);
+  const sai=e.custo+e.desp+e.free+(+c.taxi||0)+(+c.moto||0);
+  return r2((+c.cxIni||0)+(+c.din||0)+(+c.supr||0)-sai-e.assin-(+c.cxFin||0));
+}
 // ---- relatório do turno (impressão + WhatsApp) ----
 function caixaMovs(c){
   const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
@@ -286,7 +291,7 @@ function caixaTxt(c){
   if(+c.taxi)L.push(`Táxi: ${fmt(c.taxi)}`);
   if(+c.moto)L.push(`Moto: ${fmt(c.moto)}`);
   L.push('',`*Caixa final: ${fmt(c.cxFin)}*`);
-  L.push(`Diferença: ${fmt(c.dif)}`);
+  L.push(`Diferença: ${fmt(difCx(c))}`);
   const mov=[];
   if(mv.compras.length)mov.push('🛒 Compras: '+mv.compras.map(x=>`${x.fornecedor} ${fmt(x.valor)}`).join(', '));
   if(mv.freel.length)mov.push('👷 Freelancers: '+mv.freel.map(x=>`${x.nome} ${fmt(freeTotal(x))}${x.pix?' (PIX)':''}`).join(', '));
@@ -335,7 +340,7 @@ function printCaixa(c){
   ${+c.moto?ln('Moto',c.moto):''}
   <div class="line"></div>
   ${ln('CAIXA FINAL',c.cxFin,1)}
-  ${ln('Diferenca',c.dif)}
+  ${ln('Diferenca',difCx(c))}
   ${mov}
   <div class="sig">ASSINATURA DO RESPONSAVEL${c.resp?' — '+String(c.resp).toUpperCase():''}</div>
   <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
@@ -369,7 +374,7 @@ function caixa(){
       <td class="r" ${tip(e.free,c.freeMan,e.l.free)}>${e.free?fmt(e.free):'—'}</td>
       <td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>
       <td class="r">${fmt(c.cxFin)}</td>
-      <td class="r ${Math.abs(c.dif)>1?'neg':'muted'}">${fmt(c.dif)}</td>
+      <td class="r ${Math.abs(difCx(c))>1?'neg':'muted'}" title="Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final">${fmt(difCx(c))}</td>
       <td><button class="btn mini sec" data-pc="${c.id}" title="Imprimir relatório">🖨</button>
           <button class="btn mini sec" data-wc="${c.id}" title="Copiar p/ WhatsApp">📋</button>
           <button class="btn mini sec" data-e="${c.id}">✎</button>
