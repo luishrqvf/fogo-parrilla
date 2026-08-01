@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fogo Parrilla — Gestão</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#12100e;--card:#1d1a17;--card2:#26221e;--line:#37312b;--tx:#efe9e2;--mut:#9c938a;--fire:#ff7a1a;--fire2:#ffb35c;--ok:#4cc27a;--bad:#e5544b;--blue:#5aa9e6}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -167,7 +168,7 @@ const inMes=x=>x.data&&x.data.slice(0,7)===MES;
 
 // ---- generic helpers ----
 const sum=(a,f)=>a.reduce((s,x)=>s+(+f(x)||0),0);
-function del(list,id){if(!confirm('Excluir este lançamento?'))return;DB[list]=DB[list].filter(x=>x.id!==id);save();render()}
+function del(list,id){if(!confirm('Excluir este lançamento?'))return;DB.tomb=DB.tomb||{};DB.tomb[id]=Date.now();DB[list]=DB[list].filter(x=>x.id!==id);save();render()}
 
 // ---- dialog forms ----
 function openForm(title,fields,onOk,init={}){
@@ -374,7 +375,7 @@ function caixa(){
           <button class="btn mini sec" data-e="${c.id}">✎</button>
           <button class="btn mini danger" data-d="${c.id}">✕</button></td></tr>`}).join('')}
   </tbody></table></div>`;
-  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXF,o=>{o.id=uid();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXF,o=>{o.id=uid();o.mt=Date.now();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
   document.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>printCaixa(DB.caixa.find(x=>x.id===b.dataset.pc)));
   document.querySelectorAll('[data-wc]').forEach(b=>b.onclick=()=>copyText(caixaTxt(DB.caixa.find(x=>x.id===b.dataset.wc)),'Relatório copiado! É só colar no WhatsApp.'));
   wireEdit('caixa',CXF,'💰 Editar fechamento');
@@ -382,7 +383,7 @@ function caixa(){
 function wireEdit(list,fields,title){
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
     const it=DB[list].find(x=>x.id===b.dataset.e);
-    openForm(title,fields,o=>{Object.assign(it,o);save();render()},it);
+    openForm(title,fields,o=>{Object.assign(it,o);it.mt=Date.now();save();render()},it);
   });
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del(list,b.dataset.d));
 }
@@ -410,7 +411,7 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
   </div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
-  document.getElementById('add').onclick=()=>openForm(addTitle||'Novo lançamento',fields,o=>{o.id=uid();DB[list].push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.getElementById('add').onclick=()=>openForm(addTitle||'Novo lançamento',fields,o=>{o.id=uid();o.mt=Date.now();DB[list].push(o);save();render()},{data:MES+'-01',turno:'DIA'});
   wireEdit(list,fields,editTitle||'Editar lançamento');
 }
 const pillT=r=>`<span class="pill ${r.turno==='DIA'?'dia':'noite'}">${r.turno||''}</span>`;
@@ -557,10 +558,10 @@ function freel(){
   const hoje=new Date().toISOString().slice(0,10);
   document.getElementById('add').onclick=()=>freeForm('Novo pagamento de freelancer',
     {data:hoje.slice(0,7)===MES?hoje:MES+'-01',turno:'DIA'},
-    (rec,print)=>{rec.id=uid();DB.freelancers.push(rec);save();render();if(print)printFree(rec)});
+    (rec,print)=>{rec.id=uid();rec.mt=Date.now();DB.freelancers.push(rec);save();render();if(print)printFree(rec)});
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
     const it=DB.freelancers.find(x=>x.id===b.dataset.e);
-    freeForm('Editar pagamento',it,(rec,print)=>{Object.assign(it,rec);save();render();if(print)printFree(it)})});
+    freeForm('Editar pagamento',it,(rec,print)=>{Object.assign(it,rec);it.mt=Date.now();save();render();if(print)printFree(it)})});
   document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>printFree(DB.freelancers.find(x=>x.id===b.dataset.p)));
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('freelancers',b.dataset.d));
 }
@@ -607,7 +608,7 @@ function importNfCSV(text){
     const data=brDate(r[map.data]), valor=r2(brNum(r[map.val]));
     if(!forn||!valor){skip++;continue}
     if(DB.nfs.some(x=>String(x.nf)===nf&&Math.abs((+x.valor||0)-valor)<0.01)){dup++;if(data)meses.add(data.slice(0,7));continue}
-    DB.nfs.push({id:uid(),nf,fornecedor:forn,produtos:'',tipo:tipoDef,data,valor,categoria:'',obs:''});
+    DB.nfs.push({id:uid(),mt:Date.now(),nf,fornecedor:forn,produtos:'',tipo:tipoDef,data,valor,categoria:'',obs:''});
     add++;if(data)meses.add(data.slice(0,7));
   }
   return{add,dup,skip,meses};
@@ -664,7 +665,7 @@ function nfs(){
   </tbody></table></div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
-  document.getElementById('add').onclick=()=>openForm('Nova nota fiscal',fields,o=>{o.id=uid();DB.nfs.push(o);save();render()},{data:MES+'-01',tipo:'Custo'});
+  document.getElementById('add').onclick=()=>openForm('Nova nota fiscal',fields,o=>{o.id=uid();o.mt=Date.now();DB.nfs.push(o);save();render()},{data:MES+'-01',tipo:'Custo'});
   document.getElementById('csvImp').onchange=e=>{if(e.target.files.length)handleNfImport([...e.target.files])};
   wireEdit('nfs',fields,'Editar nota fiscal');
 }
@@ -672,11 +673,13 @@ function nfs(){
 // ================= util bar (backup) =================
 function footer(){
   const f=document.createElement('div');f.className='bar';f.style.margin='26px 0 10px';
-  f.innerHTML=`<span class="muted">Dados salvos automaticamente neste navegador.</span>
+  f.innerHTML=`<span class="muted">Dados salvos no aparelho e sincronizados online ao entrar.</span>
+   <button class="btn sec mini" id="syncBtn">🔄 Sincronizar agora</button>
    <button class="btn sec mini" id="exp">⬇ Exportar backup</button>
    <label class="btn sec mini" style="cursor:pointer">⬆ Importar<input type="file" id="imp" accept=".json" hidden></label>
    <button class="btn danger mini" id="rst">Restaurar planilha original</button>`;
   document.getElementById('main').appendChild(f);
+  f.querySelector('#syncBtn').onclick=()=>{try{syncNow(true)}catch(e){alert('Sincronização indisponível.')}};
   f.querySelector('#exp').onclick=()=>{
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));
@@ -743,7 +746,7 @@ function mergeDB(nd){
     for(const rec of inc[k]){
       const kk=key[k](rec);
       if(have.has(kk)){skip++;continue}
-      rec.id=uid();DB[k].push(rec);have.add(kk);add++;
+      rec.id=uid();rec.mt=rec.mt||Date.now();DB[k].push(rec);have.add(kk);add++;
     }
   }
   DB.version=2;save();drawMes();render();
@@ -766,61 +769,104 @@ document.getElementById('nav').onclick=e=>{
 };
 drawMes();render();
 
-// ================= senha de acesso (por aparelho) =================
-const PKEY='fogoPass';
-async function sha(t){
-  try{
-    if(crypto&&crypto.subtle){
-      const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('fogo|'+t));
-      return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-    }
-  }catch(e){}
-  let h=0;for(const ch of 'fogo|'+t){h=(h*31+ch.charCodeAt(0))>>>0}return'x'+h;
+// ================= LOGIN + SINCRONIZAÇÃO ONLINE (Supabase) =================
+const SB_URL='https://qaeesiwsmxomsxngfdef.supabase.co';
+const SB_KEY='sb_publishable_J8o6sRgr18vbj3Lddwrt7w_VpnfwaqJ';
+let sb=null,syncTimer=null,syncing=false;
+try{sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){}
+const syncEl=document.createElement('span');
+syncEl.id='sync';syncEl.style.cssText='font-size:12px;color:var(--mut)';
+document.querySelector('header').insertBefore(syncEl,document.getElementById('mes'));
+function syncStat(t,c){syncEl.textContent=t;syncEl.style.color=c||'var(--mut)'}
+async function sessionUser(){
+  if(!sb)return null;
+  try{const{data}=await sb.auth.getSession();return data.session?data.session.user:null}catch(e){return null}
 }
-function lockScreen(){
+function loginScreen(){
   if(document.getElementById('lock'))return;
-  let saved=null;try{saved=localStorage.getItem(PKEY)}catch(e){}
-  const has=!!saved;
   const ov=document.createElement('div');ov.id='lock';
   ov.style.cssText='position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center';
-  ov.innerHTML=`<div class="card" style="width:min(92vw,360px);text-align:center">
+  ov.innerHTML=`<div class="card" style="width:min(92vw,380px);text-align:center">
     <div style="font-size:34px">🔥</div><h3 style="margin:8px 0;color:var(--fire2)">FOGO PARRILLA</h3>
-    <p class="muted" style="margin-bottom:12px">${has?'Digite a senha de acesso':'Primeiro acesso neste aparelho: defina uma senha'}</p>
-    <input type="password" id="pw1" placeholder="Senha" style="width:100%;margin-bottom:8px">
-    ${has?'':'<input type="password" id="pw2" placeholder="Confirmar senha" style="width:100%;margin-bottom:8px">'}
-    <button class="btn" id="pwOk" style="width:100%">${has?'Entrar':'Definir senha e entrar'}</button>
-    <div id="pwMsg" style="margin-top:8px;min-height:16px;color:var(--bad);font-size:13px"></div>
-    ${has?'<button class="btn sec mini" id="pwForgot" style="margin-top:4px">Esqueci a senha</button>':''}
+    <p class="muted" style="margin-bottom:12px">Entre para sincronizar seus dados em todos os aparelhos</p>
+    <input type="email" id="lg_e" placeholder="E-mail" style="width:100%;margin-bottom:8px">
+    <input type="password" id="lg_p" placeholder="Senha" style="width:100%;margin-bottom:8px">
+    <button class="btn" id="lg_ok" style="width:100%">Entrar</button>
+    <div id="lg_m" style="margin-top:8px;min-height:16px;color:var(--bad);font-size:13px"></div>
+    <button class="btn sec mini" id="lg_off" style="margin-top:4px">Usar sem login (só neste aparelho)</button>
   </div>`;
   document.body.appendChild(ov);
-  const msg=t=>ov.querySelector('#pwMsg').textContent=t;
+  const m=ov.querySelector('#lg_m');
   const go=async()=>{
-    const v=ov.querySelector('#pw1').value;
-    if(!v){msg('Digite a senha.');return}
-    if(has){
-      if(await sha(v)===saved)ov.remove();
-      else msg('Senha incorreta.');
-    }else{
-      const v2=ov.querySelector('#pw2').value;
-      if(v.length<4){msg('Use pelo menos 4 caracteres.');return}
-      if(v!==v2){msg('As senhas não conferem.');return}
-      try{localStorage.setItem(PKEY,await sha(v))}catch(e){}
-      ov.remove();
-    }
+    const e=ov.querySelector('#lg_e').value.trim(),p=ov.querySelector('#lg_p').value;
+    if(!e||!p){m.style.color='var(--bad)';m.textContent='Preencha e-mail e senha.';return}
+    if(!sb){m.style.color='var(--bad)';m.textContent='Sem conexão com a nuvem. Verifique a internet.';return}
+    m.style.color='var(--mut)';m.textContent='Entrando…';
+    try{
+      const{error}=await sb.auth.signInWithPassword({email:e,password:p});
+      if(error){m.style.color='var(--bad)';m.textContent='Login falhou: verifique e-mail e senha.';return}
+      ov.remove();syncNow();
+    }catch(err){m.style.color='var(--bad)';m.textContent='Sem conexão. Tente novamente.'}
   };
-  ov.querySelector('#pwOk').onclick=go;
-  ov.querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')go()});
-  const fg=ov.querySelector('#pwForgot');
-  if(fg)fg.onclick=()=>{
-    if(confirm('Por segurança, redefinir a senha APAGA todos os lançamentos deste aparelho (depois é só importar um backup). Continuar?')){
-      try{localStorage.removeItem(PKEY);localStorage.removeItem(KEY)}catch(e){}
-      location.reload();
-    }
-  };
-  setTimeout(()=>{const i=ov.querySelector('#pw1');i&&i.focus()},80);
+  ov.querySelector('#lg_ok').onclick=go;
+  ov.querySelectorAll('input').forEach(i=>i.onkeydown=ev=>{if(ev.key==='Enter')go()});
+  ov.querySelector('#lg_off').onclick=()=>{ov.remove();syncStat('⚪ sem login — dados só neste aparelho')};
+  setTimeout(()=>{const i=ov.querySelector('#lg_e');i&&i.focus()},80);
 }
-document.getElementById('lockBtn').onclick=lockScreen;
-lockScreen();
+function contentKey(k,x){
+  if(k==='caixa')return'c|'+x.data+'|'+(x.turno||'');
+  if(k==='compras')return['p',x.data,x.turno,x.fornecedor,(+x.valor||0).toFixed(2)].join('|');
+  if(k==='freelancers')return['f',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|');
+  if(k==='assinadas')return['a',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|');
+  return['n',x.nf,(+x.valor||0).toFixed(2)].join('|');
+}
+function mergeStates(a,b){ // une local (a) e nuvem (b); registro mais recente vence; exclusões respeitadas
+  const out={version:2,tomb:Object.assign({},a.tomb||{},b.tomb||{})};
+  ['caixa','compras','freelancers','assinadas','nfs'].forEach(k=>{
+    const map=new Map();
+    [...(a[k]||[]),...(b[k]||[])].forEach(x=>{
+      if(!x.id)x.id=uid();
+      const p=map.get(x.id);
+      if(!p||(+x.mt||0)>(+p.mt||0))map.set(x.id,x);
+    });
+    let arr=[...map.values()].filter(x=>{const dt=out.tomb[x.id];return!(dt&&dt>(+x.mt||0))});
+    const byC=new Map(); // remove duplicados de conteúdo (ex.: backup importado em 2 aparelhos)
+    arr.forEach(x=>{const ck=contentKey(k,x);const p=byC.get(ck);
+      if(!p||(+x.mt||0)>(+p.mt||0))byC.set(ck,x)});
+    out[k]=[...byC.values()];
+  });
+  return out;
+}
+async function syncNow(interactive){
+  if(!sb){syncStat('⚪ nuvem indisponível');return}
+  const u=await sessionUser();
+  if(!u){if(interactive)loginScreen();else syncStat('⚪ não conectado');return}
+  if(syncing)return;syncing=true;syncStat('🟡 sincronizando…');
+  try{
+    const before=JSON.stringify(DB);
+    const{data:row,error}=await sb.from('app_state').select('data').eq('user_id',u.id).maybeSingle();
+    if(error)throw error;
+    if(row&&row.data)DB=mergeStates(DB,row.data);
+    DB.version=2;_save();
+    const{error:e2}=await sb.from('app_state').upsert({user_id:u.id,data:DB,updated_at:new Date().toISOString()});
+    if(e2)throw e2;
+    syncStat('🟢 sincronizado','var(--ok)');
+    if(JSON.stringify(DB)!==before&&!document.getElementById('dlg').open){drawMes();render()}
+  }catch(e){syncStat('🔴 offline — salvo neste aparelho','var(--bad)')}
+  finally{syncing=false}
+}
+const _save=save;
+save=function(){_save();clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(),2500)};
+const lockBtn=document.getElementById('lockBtn');
+lockBtn.textContent='🚪';lockBtn.title='Sair da conta';
+lockBtn.onclick=async()=>{
+  if(!confirm('Sair da conta neste aparelho? Os dados locais permanecem salvos.'))return;
+  try{sb&&await sb.auth.signOut()}catch(e){}
+  loginScreen();
+};
+window.addEventListener('online',()=>syncNow());
+setInterval(()=>syncNow(),90000);
+(async()=>{const u=await sessionUser();if(u)syncNow();else loginScreen()})();
 </script>
 </body>
 </html>
