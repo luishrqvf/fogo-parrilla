@@ -281,21 +281,23 @@ function caixaTxt(c){
   if(c.resp)L.push(`👤 Responsável: ${c.resp}`);
   L.push('','*RESUMO*');
   L.push(`Caixa inicial: ${fmt(c.cxIni)}`);
-  if(+c.supr)L.push(`Suprimento: ${fmt(c.supr)}`);
-  L.push(`Faturamento salão: ${fmt(c.fat)}`);
-  if(+c.ifood)L.push(`iFood: ${fmt(c.ifood)}`);
-  if(+c.whats)L.push(`WhatsApp: ${fmt(c.whats)}`);
-  L.push(`Dinheiro: ${fmt(c.din)}`);
-  L.push(`PIX/Cartão: ${fmt(c.cart)}`);
-  if(e.assin)L.push(`Assinadas: ${fmt(e.assin)}`);
-  L.push('',`*SAÍDAS: ${fmt(sai)}*`);
-  if(e.custo)L.push(`Custo: ${fmt(e.custo)}`);
-  if(e.desp)L.push(`Despesa: ${fmt(e.desp)}`);
-  if(e.free)L.push(`Freelancer: ${fmt(e.free)}`);
+  if(isAdmin()){
+    if(+c.supr)L.push(`Suprimento: ${fmt(c.supr)}`);
+    L.push(`Faturamento salão: ${fmt(c.fat)}`);
+    if(+c.ifood)L.push(`iFood: ${fmt(c.ifood)}`);
+    if(+c.whats)L.push(`WhatsApp: ${fmt(c.whats)}`);
+    L.push(`Dinheiro: ${fmt(c.din)}`);
+    L.push(`PIX/Cartão: ${fmt(c.cart)}`);
+    if(e.assin)L.push(`Assinadas: ${fmt(e.assin)}`);
+    L.push('',`*SAÍDAS: ${fmt(sai)}*`);
+    if(e.custo)L.push(`Custo: ${fmt(e.custo)}`);
+    if(e.desp)L.push(`Despesa: ${fmt(e.desp)}`);
+    if(e.free)L.push(`Freelancer: ${fmt(e.free)}`);
+  }
   if(+c.retirada)L.push(`Retirada: ${fmt(c.retirada)}`);
   if(+c.moto)L.push(`Moto: ${fmt(c.moto)}`);
   L.push('',`*Caixa final: ${fmt(c.cxFin)}*`);
-  L.push(`Diferença: ${fmt(difCx(c))}`);
+  if(isAdmin())L.push(`Diferença: ${fmt(difCx(c))}`);
   const mov=[];
   if(mv.compras.length)mov.push('🛒 Compras: '+mv.compras.map(x=>`${x.fornecedor} ${fmt(x.valor)}`).join(', '));
   if(mv.freel.length)mov.push('👷 Freelancers: '+mv.freel.map(x=>`${x.nome} ${fmt(freeTotal(x))}${x.pix?' (PIX)':''}`).join(', '));
@@ -328,6 +330,7 @@ function printCaixa(c){
   ${c.resp?`<div>RESPONSAVEL: <b>${String(c.resp).toUpperCase()}</b></div>`:''}
   <div class="line"></div>
   ${ln('Caixa inicial',c.cxIni)}
+  ${isAdmin()?`
   ${+c.supr?ln('Suprimento',c.supr):''}
   ${ln('Faturamento salao',c.fat)}
   ${+c.ifood?ln('iFood',c.ifood):''}
@@ -339,12 +342,12 @@ function printCaixa(c){
   ${ln('SAIDAS',sai,1)}
   ${e.custo?ln('Custo',e.custo):''}
   ${e.desp?ln('Despesa',e.desp):''}
-  ${e.free?ln('Freelancer',e.free):''}
+  ${e.free?ln('Freelancer',e.free):''}`:''}
   ${+c.retirada?ln('Retirada',c.retirada):''}
   ${+c.moto?ln('Moto',c.moto):''}
   <div class="line"></div>
   ${ln('CAIXA FINAL',c.cxFin,1)}
-  ${ln('Diferenca',difCx(c))}
+  ${isAdmin()?ln('Diferenca',difCx(c)):''}
   ${mov}
   <div class="sig">ASSINATURA DO RESPONSAVEL${c.resp?' — '+String(c.resp).toUpperCase():''}</div>
   <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
@@ -355,41 +358,45 @@ function printCaixa(c){
 function caixa(){
   const rows=DB.caixa.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
   const t=sum(rows,c=>c.fat+c.ifood+c.whats);
+  const CXFu=isAdmin()?CXF:CXF.filter(f=>['data','turno','resp','cxIni','retirada','moto','cxFin'].includes(f.k));
   document.getElementById('main').innerHTML=`
   <div class="bar"><h2 style="margin:0">Fechamentos de caixa</h2>
-    <span class="muted">${rows.length} turnos · total ${fmt(t)}</span>
+    <span class="muted">${rows.length} turnos${isAdmin()?' · total '+fmt(t):''}</span>
     <button class="btn" style="margin-left:auto" id="add">+ Novo fechamento</button></div>
-  <p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>
+  ${isAdmin()?'<p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>':''}
   <div class="tw"><table><thead><tr>
-    <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th><th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
-    <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th><th class="r">Retirada</th><th class="r">Moto</th><th class="r">Saídas</th>
-    <th class="r">Cx final</th><th class="r">Difer.</th><th></th></tr></thead><tbody>
+    <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th>
+    ${isAdmin()?`<th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
+    <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th>`:''}
+    <th class="r">Retirada</th><th class="r">Moto</th>${isAdmin()?'<th class="r">Saídas</th>':''}
+    <th class="r">Cx final</th>${isAdmin()?'<th class="r">Difer.</th>':''}<th></th></tr></thead><tbody>
     ${rows.map(c=>{const e=eff(c);const sai=e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0);
       const tip=(v,man,lk)=>`title="lançamentos: ${fmt(lk)} + avulso: ${fmt(man||0)}"`;return`<tr>
       <td>${fmtD(c.data)} <span class="muted">${dow(c.data)}</span></td>
       <td><span class="pill ${c.turno==='DIA'?'dia':'noite'}">${c.turno}</span></td>
       <td title="${c.resp||''}">${c.resp?String(c.resp).split(' ')[0]:'—'}</td>
-      <td class="r">${fmt(c.cxIni)}</td><td class="r tot">${fmt(c.fat)}</td>
+      <td class="r">${fmt(c.cxIni)}</td>
+      ${isAdmin()?`<td class="r tot">${fmt(c.fat)}</td>
       <td class="r">${c.ifood?fmt(c.ifood):'—'}</td><td class="r">${c.whats?fmt(c.whats):'—'}</td>
       <td class="r">${fmt(c.din)}</td><td class="r">${fmt(c.cart)}</td>
       <td class="r" ${tip(e.assin,c.assinMan,e.l.assin)}>${e.assin?fmt(e.assin):'—'}</td>
       <td class="r" ${tip(e.custo,c.custoMan,e.l.custo)}>${e.custo?fmt(e.custo):'—'}</td>
       <td class="r" ${tip(e.desp,c.despMan,e.l.desp)}>${e.desp?fmt(e.desp):'—'}</td>
-      <td class="r" ${tip(e.free,c.freeMan,e.l.free)}>${e.free?fmt(e.free):'—'}</td>
+      <td class="r" ${tip(e.free,c.freeMan,e.l.free)}>${e.free?fmt(e.free):'—'}</td>`:''}
       <td class="r">${+c.retirada?fmt(c.retirada):'—'}</td>
       <td class="r">${+c.moto?fmt(c.moto):'—'}</td>
-      <td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>
+      ${isAdmin()?`<td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>`:''}
       <td class="r">${fmt(c.cxFin)}</td>
-      <td class="r" style="font-weight:600;color:${difCx(c)<0?'var(--bad)':(difCx(c)>0?'var(--blue)':'var(--mut)')}" title="(Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final) × -1">${fmt(difCx(c))}</td>
+      ${isAdmin()?`<td class="r" style="font-weight:600;color:${difCx(c)<0?'var(--bad)':(difCx(c)>0?'var(--blue)':'var(--mut)')}" title="(Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final) × -1">${fmt(difCx(c))}</td>`:''}
       <td><button class="btn mini sec" data-pc="${c.id}" title="Imprimir relatório">🖨</button>
           <button class="btn mini sec" data-wc="${c.id}" title="Copiar p/ WhatsApp">📋</button>
           <button class="btn mini sec" data-e="${c.id}">✎</button>
-          <button class="btn mini danger" data-d="${c.id}">✕</button></td></tr>`}).join('')}
+          ${isAdmin()?`<button class="btn mini danger" data-d="${c.id}">✕</button>`:''}</td></tr>`}).join('')}
   </tbody></table></div>`;
-  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXF,o=>{o.id=uid();o.mt=Date.now();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXFu,o=>{o.id=uid();o.mt=Date.now();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
   document.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>printCaixa(DB.caixa.find(x=>x.id===b.dataset.pc)));
   document.querySelectorAll('[data-wc]').forEach(b=>b.onclick=()=>copyText(caixaTxt(DB.caixa.find(x=>x.id===b.dataset.wc)),'Relatório copiado! É só colar no WhatsApp.'));
-  wireEdit('caixa',CXF,'💰 Editar fechamento');
+  wireEdit('caixa',CXFu,'💰 Editar fechamento');
 }
 function wireEdit(list,fields,title){
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
@@ -415,7 +422,7 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
   <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
     <div class="tw"><table><thead><tr>${cols.map(c=>`<th class="${c.r?'r':''}">${c.l}</th>`).join('')}<th></th></tr></thead><tbody>
       ${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.r?'r':''}">${c.f(r)}</td>`).join('')}
-      <td><button class="btn mini sec" data-e="${r.id}">✎</button> <button class="btn mini danger" data-d="${r.id}">✕</button></td></tr>`).join('')}
+      <td><button class="btn mini sec" data-e="${r.id}">✎</button> ${isAdmin()?`<button class="btn mini danger" data-d="${r.id}">✕</button>`:''}</td></tr>`).join('')}
     </tbody></table></div>
     <div class="card"><div class="lbl">Total por ${groupBy==='nome'?'pessoa':'fornecedor'}</div>
       <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
@@ -632,7 +639,7 @@ function freel(){
       <td class="r tot">${fmt(freeTotal(f))}</td>
       <td><button class="btn mini sec" data-p="${f.id}" title="Imprimir recibo">🖨</button>
           <button class="btn mini sec" data-e="${f.id}">✎</button>
-          <button class="btn mini danger" data-d="${f.id}">✕</button></td></tr>`}).join('')}
+          ${isAdmin()?`<button class="btn mini danger" data-d="${f.id}">✕</button>`:''}</td></tr>`}).join('')}
     </tbody></table></div>
     <div class="card"><div class="lbl">Total por pessoa</div>
       <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
@@ -749,7 +756,7 @@ function nfs(){
       <td>${r.fornecedor}</td><td class="muted">${r.produtos||''}</td>
       <td><span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span></td>
       <td class="r tot">${fmt(r.valor)}</td>
-      <td><button class="btn mini sec" data-e="${r.id}">✎</button> <button class="btn mini danger" data-d="${r.id}">✕</button></td></tr>`).join('')}
+      <td><button class="btn mini sec" data-e="${r.id}">✎</button> ${isAdmin()?`<button class="btn mini danger" data-d="${r.id}">✕</button>`:''}</td></tr>`).join('')}
   </tbody></table></div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
@@ -761,13 +768,14 @@ function nfs(){
 // ================= util bar (backup) =================
 function footer(){
   const f=document.createElement('div');f.className='bar';f.style.margin='26px 0 10px';
-  f.innerHTML=`<span class="muted">Dados salvos no aparelho e sincronizados online ao entrar.</span>
+  f.innerHTML=`<span class="muted">Dados sincronizados online.</span>
    <button class="btn sec mini" id="syncBtn">🔄 Sincronizar agora</button>
-   <button class="btn sec mini" id="exp">⬇ Exportar backup</button>
+   ${isAdmin()?`<button class="btn sec mini" id="exp">⬇ Exportar backup</button>
    <label class="btn sec mini" style="cursor:pointer">⬆ Importar<input type="file" id="imp" accept=".json" hidden></label>
-   <button class="btn danger mini" id="rst">Restaurar planilha original</button>`;
+   <button class="btn danger mini" id="rst">Restaurar planilha original</button>`:''}`;
   document.getElementById('main').appendChild(f);
   f.querySelector('#syncBtn').onclick=()=>{try{syncNow(true)}catch(e){alert('Sincronização indisponível.')}};
+  if(!isAdmin())return;
   f.querySelector('#exp').onclick=()=>{
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([JSON.stringify(DB)],{type:'application/json'}));
@@ -1029,14 +1037,42 @@ drawMes();render();
 const SB_URL='https://qaeesiwsmxomsxngfdef.supabase.co';
 const SB_KEY='sb_publishable_J8o6sRgr18vbj3Lddwrt7w_VpnfwaqJ';
 let sb=null,syncTimer=null,syncing=false;
+const SHARED_ID='fogo';
 try{sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){}
 const syncEl=document.createElement('span');
 syncEl.id='sync';syncEl.style.cssText='font-size:12px;color:var(--mut)';
 document.querySelector('header').insertBefore(syncEl,document.getElementById('mes'));
+const roleEl=document.createElement('span');
+roleEl.id='roleTag';roleEl.style.cssText='font-size:12px;color:var(--mut);margin-left:10px';
+document.querySelector('header').insertBefore(roleEl,document.getElementById('mes'));
 function syncStat(t,c){syncEl.textContent=t;syncEl.style.color=c||'var(--mut)'}
 async function sessionUser(){
   if(!sb)return null;
   try{const{data}=await sb.auth.getSession();return data.session?data.session.user:null}catch(e){return null}
+}
+// ---- perfis de acesso ----
+let ROLE='admin';
+const isAdmin=()=>ROLE==='admin';
+async function loadRole(u){
+  ROLE='admin';
+  if(!sb||!u)return;
+  try{
+    const{data}=await sb.from('profiles').select('role').eq('user_id',u.id).maybeSingle();
+    if(data&&data.role)ROLE=data.role;
+  }catch(e){}
+  applyRole(u);
+}
+function applyRole(u){
+  const esc=['dash','nfs','relat']; // exclusivos do administrador
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.style.display=(!isAdmin()&&esc.includes(b.dataset.t))?'none':'';
+  });
+  if(!isAdmin()&&esc.includes(tab)){
+    tab='caixa';
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.t==='caixa'));
+  }
+  const badge=document.getElementById('roleTag');
+  if(badge)badge.textContent=(isAdmin()?'👑 admin':'👤 operador')+(u&&u.email?' · '+u.email.split('@')[0]:'');
 }
 function loginScreen(){
   if(document.getElementById('lock'))return;
@@ -1061,7 +1097,7 @@ function loginScreen(){
     try{
       const{error}=await sb.auth.signInWithPassword({email:e,password:p});
       if(error){m.style.color='var(--bad)';m.textContent='Login falhou: verifique e-mail e senha.';return}
-      ov.remove();syncNow();
+      ov.remove();const uu=await sessionUser();await loadRole(uu);render();syncNow();
     }catch(err){m.style.color='var(--bad)';m.textContent='Sem conexão. Tente novamente.'}
   };
   ov.querySelector('#lg_ok').onclick=go;
@@ -1100,11 +1136,15 @@ async function syncNow(interactive){
   if(syncing)return;syncing=true;syncStat('🟡 sincronizando…');
   try{
     const before=JSON.stringify(DB);
-    const{data:row,error}=await sb.from('app_state').select('data').eq('user_id',u.id).maybeSingle();
+    let{data:row,error}=await sb.from('app_shared').select('data').eq('id',SHARED_ID).maybeSingle();
     if(error)throw error;
+    if(!row){ // primeira vez: aproveita os dados antigos da conta, se existirem
+      try{const r0=await sb.from('app_state').select('data').eq('user_id',u.id).maybeSingle();
+        if(r0&&r0.data&&r0.data.data)row={data:r0.data.data}}catch(e){}
+    }
     if(row&&row.data)DB=mergeStates(DB,row.data);
     DB.version=2;normalize();_save();
-    const{error:e2}=await sb.from('app_state').upsert({user_id:u.id,data:DB,updated_at:new Date().toISOString()});
+    const{error:e2}=await sb.from('app_shared').upsert({id:SHARED_ID,data:DB,updated_at:new Date().toISOString()});
     if(e2)throw e2;
     syncStat('🟢 sincronizado','var(--ok)');
     if(JSON.stringify(DB)!==before&&!document.getElementById('dlg').open){drawMes();render()}
@@ -1122,7 +1162,7 @@ lockBtn.onclick=async()=>{
 };
 window.addEventListener('online',()=>syncNow());
 setInterval(()=>syncNow(),90000);
-(async()=>{const u=await sessionUser();if(u)syncNow();else loginScreen()})();
+(async()=>{const u=await sessionUser();if(u){await loadRole(u);render();syncNow()}else loginScreen()})();
 </script>
 </body>
 </html>
