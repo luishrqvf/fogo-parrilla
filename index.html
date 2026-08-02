@@ -257,7 +257,7 @@ const CXF=[
 function difCx(c){
   const e=eff(c);
   const sai=e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0);
-  return r2((+c.cxIni||0)+(+c.din||0)+(+c.supr||0)-sai-e.assin-(+c.cxFin||0));
+  return r2(-((+c.cxIni||0)+(+c.din||0)+(+c.supr||0)-sai-e.assin-(+c.cxFin||0)));
 }
 // ---- relatório do turno (impressão + WhatsApp) ----
 function caixaMovs(c){
@@ -379,7 +379,7 @@ function caixa(){
       <td class="r">${+c.moto?fmt(c.moto):'—'}</td>
       <td class="r ${sai?'neg':''}">${sai?fmt(sai):'—'}</td>
       <td class="r">${fmt(c.cxFin)}</td>
-      <td class="r ${Math.abs(difCx(c))>1?'neg':'muted'}" title="Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final">${fmt(difCx(c))}</td>
+      <td class="r" style="font-weight:600;color:${difCx(c)<0?'var(--bad)':(difCx(c)>0?'var(--blue)':'var(--mut)')}" title="(Caixa inicial + Dinheiro + Suprimento − Saídas − Assinadas − Caixa final) × -1">${fmt(difCx(c))}</td>
       <td><button class="btn mini sec" data-pc="${c.id}" title="Imprimir relatório">🖨</button>
           <button class="btn mini sec" data-wc="${c.id}" title="Copiar p/ WhatsApp">📋</button>
           <button class="btn mini sec" data-e="${c.id}">✎</button>
