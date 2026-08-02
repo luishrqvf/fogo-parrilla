@@ -800,8 +800,7 @@ function footer(){
   f.innerHTML=`<span class="muted">Dados sincronizados online.</span>
    <button class="btn sec mini" id="syncBtn">🔄 Sincronizar agora</button>
    ${isAdmin()?`<button class="btn sec mini" id="exp">⬇ Exportar backup</button>
-   <label class="btn sec mini" style="cursor:pointer">⬆ Importar<input type="file" id="imp" accept=".json" hidden></label>
-   <button class="btn danger mini" id="rst">Restaurar planilha original</button>`:''}`;
+   <label class="btn sec mini" style="cursor:pointer">⬆ Importar<input type="file" id="imp" accept=".json" hidden></label>`:''}`;
   document.getElementById('main').appendChild(f);
   f.querySelector('#syncBtn').onclick=()=>{try{syncNow(true)}catch(e){alert('Sincronização indisponível.')}};
   if(!isAdmin())return;
@@ -817,12 +816,6 @@ function footer(){
       askImportMode(nd);
     });
     e.target.value='';
-  };
-  f.querySelector('#rst').onclick=()=>{
-    if(!confirm('Isso apaga todos os lançamentos feitos no app e volta aos dados da planilha de julho. Continuar?'))return;
-    localStorage.removeItem(KEY);load();
-    ['caixa','compras','freelancers','cantores','assinadas','nfs'].forEach(k=>DB[k].forEach(x=>x.id=x.id||uid()));
-    migrate();normalize();save();drawMes();render();
   };
 }
 
