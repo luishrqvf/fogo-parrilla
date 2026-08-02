@@ -281,8 +281,8 @@ function caixaTxt(c){
   if(c.resp)L.push(`👤 Responsável: ${c.resp}`);
   L.push('','*RESUMO*');
   L.push(`Caixa inicial: ${fmt(c.cxIni)}`);
+  if(+c.supr)L.push(`Suprimento: ${fmt(c.supr)}`);
   if(isAdmin()){
-    if(+c.supr)L.push(`Suprimento: ${fmt(c.supr)}`);
     L.push(`Faturamento salão: ${fmt(c.fat)}`);
     if(+c.ifood)L.push(`iFood: ${fmt(c.ifood)}`);
     if(+c.whats)L.push(`WhatsApp: ${fmt(c.whats)}`);
@@ -330,8 +330,8 @@ function printCaixa(c){
   ${c.resp?`<div>RESPONSAVEL: <b>${String(c.resp).toUpperCase()}</b></div>`:''}
   <div class="line"></div>
   ${ln('Caixa inicial',c.cxIni)}
-  ${isAdmin()?`
   ${+c.supr?ln('Suprimento',c.supr):''}
+  ${isAdmin()?`
   ${ln('Faturamento salao',c.fat)}
   ${+c.ifood?ln('iFood',c.ifood):''}
   ${+c.whats?ln('WhatsApp',c.whats):''}
@@ -358,14 +358,14 @@ function printCaixa(c){
 function caixa(){
   const rows=DB.caixa.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
   const t=sum(rows,c=>c.fat+c.ifood+c.whats);
-  const CXFu=isAdmin()?CXF:CXF.filter(f=>['data','turno','resp','cxIni','retirada','moto','cxFin'].includes(f.k));
+  const CXFu=isAdmin()?CXF:CXF.filter(f=>['data','turno','resp','cxIni','supr','retirada','moto','cxFin'].includes(f.k));
   document.getElementById('main').innerHTML=`
   <div class="bar"><h2 style="margin:0">Fechamentos de caixa</h2>
     <span class="muted">${rows.length} turnos${isAdmin()?' · total '+fmt(t):''}</span>
     <button class="btn" style="margin-left:auto" id="add">+ Novo fechamento</button></div>
   ${isAdmin()?'<p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>':''}
   <div class="tw"><table><thead><tr>
-    <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th>
+    <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th><th class="r">Suprim.</th>
     ${isAdmin()?`<th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
     <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th>`:''}
     <th class="r">Retirada</th><th class="r">Moto</th>${isAdmin()?'<th class="r">Saídas</th>':''}
@@ -376,6 +376,7 @@ function caixa(){
       <td><span class="pill ${c.turno==='DIA'?'dia':'noite'}">${c.turno}</span></td>
       <td title="${c.resp||''}">${c.resp?String(c.resp).split(' ')[0]:'—'}</td>
       <td class="r">${fmt(c.cxIni)}</td>
+      <td class="r">${+c.supr?fmt(c.supr):'—'}</td>
       ${isAdmin()?`<td class="r tot">${fmt(c.fat)}</td>
       <td class="r">${c.ifood?fmt(c.ifood):'—'}</td><td class="r">${c.whats?fmt(c.whats):'—'}</td>
       <td class="r">${fmt(c.din)}</td><td class="r">${fmt(c.cart)}</td>
@@ -407,7 +408,8 @@ function wireEdit(list,fields,title){
 }
 
 // ============ COMPRAS / FREELANCERS / ASSINADAS ============
-function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
+function listView({title,list,fields,cols,groupBy,addTitle,editTitle,adminGroup}){
+  const showGroup=!adminGroup||isAdmin();
   let rows=DB[list].filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
   const q=(window._q||'').toLowerCase();
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
@@ -419,13 +421,13 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
   <div class="bar"><h2 style="margin:0">${title}</h2><span class="muted">${rows.length} lançamentos · <span class="tot">${fmt(tot)}</span></span>
     <input class="search" placeholder="🔍 buscar..." id="q" value="${window._q||''}">
     <button class="btn" id="add">+ Novo</button></div>
-  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+  <div class="grid" style="grid-template-columns:${showGroup?'2fr 1fr':'1fr'};align-items:start">
     <div class="tw"><table><thead><tr>${cols.map(c=>`<th class="${c.r?'r':''}">${c.l}</th>`).join('')}<th></th></tr></thead><tbody>
       ${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.r?'r':''}">${c.f(r)}</td>`).join('')}
       <td><button class="btn mini sec" data-e="${r.id}">✎</button> ${isAdmin()?`<button class="btn mini danger" data-d="${r.id}">✕</button>`:''}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="card"><div class="lbl">Total por ${groupBy==='nome'?'pessoa':'fornecedor'}</div>
-      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
+    ${showGroup?`<div class="card"><div class="lbl">Total por ${groupBy==='nome'?'pessoa':'fornecedor'}</div>
+      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>`:''}
   </div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
@@ -433,7 +435,7 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle}){
   wireEdit(list,fields,editTitle||'Editar lançamento');
 }
 const pillT=r=>`<span class="pill ${r.turno==='DIA'?'dia':'noite'}">${r.turno||''}</span>`;
-function compras(){listView({title:'Compras do período',list:'compras',groupBy:'fornecedor',addTitle:'🛒 Nova compra',editTitle:'🛒 Editar compra',
+function compras(){listView({title:'Compras do período',list:'compras',groupBy:'fornecedor',adminGroup:true,addTitle:'🛒 Nova compra',editTitle:'🛒 Editar compra',
   fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'fornecedor',l:'Fornecedor *',req:1},{k:'tipo',l:'Tipo',opts:['Custo','Despesa']},{k:'valor',l:'Valor *',t:'number',req:1}],
   cols:[{l:'Data',f:r=>fmtD(r.data)},{l:'Turno',f:pillT},{l:'Fornecedor',f:r=>r.fornecedor},
         {l:'Tipo',f:r=>`<span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span>`},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
@@ -627,7 +629,7 @@ function freel(){
     <button class="btn sec" id="addVT">🚌 Vale transporte</button>
     <button class="btn" id="add">+ Novo pagamento</button></div>
   <p class="muted" style="margin:0 0 10px">Para pagamento semanal, lance todos os dias/turnos trabalhados e as horas extras. O recibo sai na impressora térmica (bobina 80mm) com campo de assinatura, e o total entra no caixa do dia/turno do pagamento.</p>
-  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+  <div class="grid" style="grid-template-columns:${isAdmin()?'2fr 1fr':'1fr'};align-items:start">
     <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th>Tipo</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th></th></tr></thead><tbody>
     ${rows.map(f=>{const its=freeItens(f);const heH=its.reduce((s,i)=>s+(+i.he||0),0);
       return`<tr><td>${fmtD(f.data)} <span class="muted">${dow(f.data)}</span></td>
@@ -641,8 +643,8 @@ function freel(){
           <button class="btn mini sec" data-e="${f.id}">✎</button>
           ${isAdmin()?`<button class="btn mini danger" data-d="${f.id}">✕</button>`:''}</td></tr>`}).join('')}
     </tbody></table></div>
-    <div class="card"><div class="lbl">Total por pessoa</div>
-      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>
+    ${isAdmin()?`<div class="card"><div class="lbl">Total por pessoa</div>
+      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}</table></div>`:''}
   </div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
@@ -660,7 +662,7 @@ function freel(){
   document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>printFree(DB.freelancers.find(x=>x.id===b.dataset.p)));
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('freelancers',b.dataset.d));
 }
-function assin(){listView({title:'Notas assinadas (consumo a pagar)',list:'assinadas',groupBy:'nome',addTitle:'✍️ Nova nota assinada',editTitle:'✍️ Editar nota assinada',
+function assin(){listView({title:'Notas assinadas (consumo a pagar)',list:'assinadas',groupBy:'nome',adminGroup:true,addTitle:'✍️ Nova nota assinada',editTitle:'✍️ Editar nota assinada',
   fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'nome',l:'Nome *',req:1},{k:'valor',l:'Valor *',t:'number',req:1}],
   cols:[{l:'Data',f:r=>fmtD(r.data)},{l:'Turno',f:pillT},{l:'Nome',f:r=>r.nome},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
 
