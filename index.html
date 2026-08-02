@@ -83,6 +83,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
   <button data-t="freel">👷 Freelancers</button>
   <button data-t="cantor">🎤 Cantores</button>
   <button data-t="assin">✍️ Notas Assinadas</button>
+  <button data-t="diretoria">🏛️ Diretoria</button>
   <button data-t="nfs">📄 Notas Fiscais</button>
   <button data-t="relat">📑 Relatórios</button>
 </nav>
@@ -90,7 +91,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
 
 <dialog id="dlg"></dialog>
 
-<script id="seed" type="application/json">{"version": 2, "caixa": [], "compras": [], "freelancers": [], "cantores": [], "assinadas": [], "nfs": []}</script>
+<script id="seed" type="application/json">{"version": 2, "caixa": [], "compras": [], "freelancers": [], "cantores": [], "assinadas": [], "diretoria": [], "nfs": []}</script>
 <script>
 const fmt=v=>(v<0?'-':'')+'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>{if(!d)return'—';const[y,m,dd]=String(d).split('-');return dd+'/'+m+'/'+(y||'').slice(2)};
@@ -106,7 +107,7 @@ function load(){
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){alert('Não foi possível salvar no navegador.')}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 load();
-['caixa','compras','freelancers','cantores','assinadas','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
+['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
 
 // ---- vínculo automático: compras/freelancers/assinadas alimentam o fechamento ----
 const r2=v=>Math.round(v*100)/100;
@@ -214,7 +215,8 @@ function dash(){
   const cantTot=r2((DB.cantores||[]).filter(inMes).reduce((s,f)=>s+(+f.valor||0),0));
   const cantPix=r2((DB.cantores||[]).filter(f=>inMes(f)&&f.pix).reduce((s,f)=>s+(+f.valor||0),0));
   const assinTot=sum(DB.assinadas.filter(inMes),f=>f.valor);
-  const gastos=r2(nfTot+saidas+freePix+cantPix); // PIX não sai do caixa, mas é gasto
+  const dirTot=r2((DB.diretoria||[]).filter(inMes).reduce((s,f)=>s+(+f.valor||0),0));
+  const gastos=r2(nfTot+saidas+freePix+cantPix+dirTot); // PIX não sai do caixa, mas é gasto
   const lucro=fat-gastos;
   const byT=t=>cx.filter(c=>c.turno===t);
   const fatDia=sum(byT('DIA'),c=>c.fat+c.ifood+c.whats), fatNoite=sum(byT('NOITE'),c=>c.fat+c.ifood+c.whats);
@@ -231,6 +233,7 @@ function dash(){
     ${k('Notas fiscais',nfTot,'bad')}
     ${k('Freelancers',freeTot)}
     ${k('Cantores',cantTot)}
+    ${k('Diretoria',dirTot,'bad')}
     ${k('Notas assinadas',assinTot)}
     ${k('Gastos totais',gastos,'bad')}
     ${k('Resultado',lucro,lucro>=0?'ok':'bad')}
@@ -924,6 +927,86 @@ function cantor(){
   document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('cantores',b.dataset.d));
 }
 
+// ================= DIRETORIA (despesas administrativas — sempre PIX) =================
+const DIRCAT=['ALUGUEL','ÁGUA','LUZ','GÁS','INTERNET / TELEFONE','MANUTENÇÃO','IMPOSTOS','TAXAS',
+  'CONTABILIDADE','MARKETING','SEGURO','SOFTWARE / SISTEMAS','SALÁRIOS','PRÓ-LABORE','EMPRÉSTIMO','INVESTIMENTOS','OUTROS'];
+function dirForm(title,init,onOk){
+  const dlg=document.getElementById('dlg');dlg.classList.remove('wide');
+  const forns=[...new Set((DB.diretoria||[]).map(f=>f.fornecedor).filter(Boolean))].sort();
+  dlg.innerHTML=`<datalist id="dirforn">${forns.map(n=>`<option value="${n}">`).join('')}</datalist>
+  <h3>🏛️ ${title}</h3>
+  <div class="fgrid">
+    <label>Categoria *<select id="d_cat">${DIRCAT.map(c=>`<option ${init.categoria===c?'selected':''}>${c}</option>`).join('')}</select></label>
+    <label>Descrição<input id="d_desc" value="${init.descricao||''}" placeholder="ex.: aluguel agosto"></label>
+    <label>Fornecedor / favorecido<input id="d_forn" list="dirforn" value="${init.fornecedor||''}"></label>
+    <label>Data do pagamento *<input type="date" id="d_data" value="${init.data||MES+'-01'}"></label>
+    <label>Valor R$ *<input type="number" step="0.01" min="0" id="d_valor" value="${init.valor||''}"></label>
+    <label>Tipo<select id="d_tipo">
+      <option value="Custo" ${init.tipo!=='Despesa'&&init.tipo!=='Investimento'?'selected':''}>Custo</option>
+      <option value="Despesa" ${init.tipo==='Despesa'?'selected':''}>Despesa</option>
+      <option value="Investimento" ${init.tipo==='Investimento'?'selected':''}>Investimento</option></select></label>
+    <label>Observação<input id="d_obs" value="${init.obs||''}"></label>
+  </div>
+  <p class="muted" style="margin-top:10px">Pagamentos da diretoria são sempre por PIX/transferência: entram nos gastos totais, mas não afetam o caixa do dia.</p>
+  <div class="dlgbar">
+    <button class="btn sec" id="d_cancel">Cancelar</button>
+    <button class="btn" id="d_ok">Salvar</button>
+  </div>`;
+  dlg.showModal();
+  dlg.querySelector('#d_cancel').onclick=()=>dlg.close();
+  dlg.querySelector('#d_ok').onclick=()=>{
+    const data=dlg.querySelector('#d_data').value;
+    const valor=parseFloat(dlg.querySelector('#d_valor').value)||0;
+    if(!data||!valor){alert('Preencha data e valor.');return}
+    dlg.close();
+    onOk({categoria:dlg.querySelector('#d_cat').value,descricao:dlg.querySelector('#d_desc').value.trim(),
+      fornecedor:dlg.querySelector('#d_forn').value.trim(),data,valor:r2(valor),
+      tipo:dlg.querySelector('#d_tipo').value,obs:dlg.querySelector('#d_obs').value.trim()});
+  };
+  setTimeout(()=>dlg.querySelector('#d_desc').focus(),60);
+}
+function diretoria(){
+  DB.diretoria=DB.diretoria||[];
+  let rows=DB.diretoria.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
+  const q=(window._q||'').toLowerCase();
+  if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  const tot=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
+  const grupo={};rows.forEach(f=>grupo[f.categoria]=r2((grupo[f.categoria]||0)+(+f.valor||0)));
+  const top=Object.entries(grupo).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">🏛️ Pagamentos da diretoria</h2>
+    <span class="muted">${rows.length} lançamento(s) · <span class="tot">${fmt(tot)}</span></span>
+    <input class="search" id="q" placeholder="🔍 categoria, fornecedor..." value="${window._q||''}">
+    <button class="btn" id="add">+ Novo pagamento</button></div>
+  <p class="muted" style="margin:0 0 10px">Aluguel, água, luz, impostos, manutenções, investimentos e afins. Pagos via PIX/transferência: somam nos gastos totais, sem afetar o caixa.</p>
+  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+    <div class="tw"><table><thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Fornecedor</th><th>Tipo</th><th class="r">Valor</th><th></th></tr></thead><tbody>
+    ${rows.length?rows.map(f=>`<tr><td>${fmtD(f.data)}</td>
+      <td><span class="pill c">${f.categoria||'—'}</span></td>
+      <td>${f.descricao||'—'}${f.obs?` <span class="muted">(${f.obs})</span>`:''}</td>
+      <td class="muted">${f.fornecedor||'—'}</td>
+      <td><span class="pill ${f.tipo==='Custo'?'c':'d'}">${f.tipo||'Custo'}</span></td>
+      <td class="r tot">${fmt(f.valor)}</td>
+      <td><button class="btn mini sec" data-e="${f.id}">✎</button>
+          <button class="btn mini danger" data-d="${f.id}">✕</button></td></tr>`).join('')
+      :'<tr><td colspan="7" class="muted" style="padding:18px;text-align:center">Nenhum pagamento lançado neste mês.</td></tr>'}
+    </tbody></table></div>
+    <div class="card"><div class="lbl">Total por categoria</div>
+      <table>${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}
+      ${top.length?`<tr><td><b>TOTAL</b></td><td class="r tot">${fmt(tot)}</td></tr>`:''}</table></div>
+  </div>`;
+  document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
+    const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  const hoje=new Date().toISOString().slice(0,10);
+  document.getElementById('add').onclick=()=>dirForm('Novo pagamento da diretoria',
+    {data:hoje.slice(0,7)===MES?hoje:MES+'-01',categoria:'ALUGUEL',tipo:'Custo'},
+    rec=>{rec.id=uid();rec.mt=Date.now();DB.diretoria.push(rec);save();render()});
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const it=DB.diretoria.find(x=>x.id===b.dataset.e);
+    dirForm('Editar pagamento',it,rec=>{Object.assign(it,rec);it.mt=Date.now();save();render()})});
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('diretoria',b.dataset.d));
+}
+
 // ================= RELATÓRIOS =================
 let RF=null;
 function relat(){
@@ -934,6 +1017,7 @@ function relat(){
   const qq=(F.q||'').toLowerCase();
   const SUBS={caixa:[['','Todos os turnos']],
     cantores:[['','Todos'],['PIX','Somente PIX'],['DIN','Somente dinheiro']],
+    diretoria:[['','Todas as categorias'],...DIRCAT.map(c=>[c,c])],
     freelancers:[['','Todos'],['DIARIA','Somente diárias'],['VT','Somente vale transporte'],['PIX','Somente PIX'],['DIN','Somente dinheiro']],
     compras:[['','Todos'],['Custo','Somente custo'],['Despesa','Somente despesa']],
     assinadas:[['','Todos']]};
@@ -961,6 +1045,12 @@ function relat(){
     }).sort((a,b)=>a.data.localeCompare(b.data));
     total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
     rows.forEach(f=>grupo[f.nome]=r2((grupo[f.nome]||0)+(+f.valor||0)));gLabel='Total por cantor';
+  }else if(F.tipo==='diretoria'){
+    rows=(DB.diretoria||[]).filter(x=>x.data&&x.data>=F.de&&x.data<=F.ate)
+      .filter(f=>(!F.sub||f.categoria===F.sub)&&(!qq||JSON.stringify(f).toLowerCase().includes(qq)))
+      .sort((a,b)=>a.data.localeCompare(b.data));
+    total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
+    rows.forEach(f=>grupo[f.categoria]=r2((grupo[f.categoria]||0)+(+f.valor||0)));gLabel='Total por categoria';
   }else if(F.tipo==='compras'){
     rows=DB.compras.filter(inRange).filter(c=>(!F.sub||c.tipo===F.sub)&&(!qq||JSON.stringify(c).toLowerCase().includes(qq)))
       .sort((a,b)=>a.data.localeCompare(b.data));
@@ -989,6 +1079,9 @@ function relat(){
   }else if(F.tipo==='cantores'){
     head=['Data','Turno','Cantor / banda','Obs.','Pgto','Valor'];
     body=rows.map(f=>[`${fmtD(f.data)} ${dow(f.data)}`,f.turno||'',f.nome,f.obs||'',f.pix?'PIX':'Dinheiro',fmt(f.valor)]);
+  }else if(F.tipo==='diretoria'){
+    head=['Data','Categoria','Descrição','Fornecedor','Tipo','Valor'];
+    body=rows.map(f=>[fmtD(f.data),f.categoria||'',f.descricao||'',f.fornecedor||'',f.tipo||'Custo',fmt(f.valor)]);
   }else if(F.tipo==='compras'){
     head=['Data','Turno','Fornecedor','Tipo','Valor'];
     body=rows.map(c=>[`${fmtD(c.data)} ${dow(c.data)}`,c.turno||'',c.fornecedor,c.tipo,fmt(c.valor)]);
@@ -996,7 +1089,7 @@ function relat(){
     head=['Data','Turno','Nome','Valor'];
     body=rows.map(a=>[`${fmtD(a.data)} ${dow(a.data)}`,a.turno||'',a.nome,fmt(a.valor)]);
   }
-  const NOME={caixa:'Fechamentos de caixa',freelancers:'Pagamentos de freelancers',cantores:'Pagamentos a cantores',compras:'Compras',assinadas:'Notas assinadas'};
+  const NOME={caixa:'Fechamentos de caixa',freelancers:'Pagamentos de freelancers',cantores:'Pagamentos a cantores',diretoria:'Pagamentos da diretoria',compras:'Compras',assinadas:'Notas assinadas'};
   const extra=(()=>{
     if(F.tipo!=='caixa')return'';
     const s=k=>r2(rows.reduce((t,c)=>t+(+c[k]||0),0));
@@ -1119,7 +1212,7 @@ function askImportMode(nd){
   dlg.querySelector('#im_cancel').onclick=()=>dlg.close();
   dlg.querySelector('#im_replace').onclick=()=>{dlg.close();
     if(!confirm('Tem certeza? TODOS os dados deste aparelho serão substituídos pelos do arquivo.'))return;
-    DB=nd;['caixa','compras','freelancers','cantores','assinadas','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
+    DB=nd;['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
     migrate();normalize();save();drawMes();render();alert('Backup importado (substituição completa).')};
   dlg.querySelector('#im_merge').onclick=()=>{dlg.close();mergeDB(nd)};
 }
@@ -1141,6 +1234,7 @@ function mergeDB(nd){
     compras:x=>['p',x.data,x.turno,x.fornecedor,(+x.valor||0).toFixed(2)].join('|'),
     freelancers:x=>['f',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     cantores:x=>['k',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
+    diretoria:x=>['d',x.data,x.categoria,x.descricao||'',(+x.valor||0).toFixed(2)].join('|'),
     assinadas:x=>['a',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     nfs:x=>['n',x.nf,(+x.valor||0).toFixed(2)].join('|')};
   let add=0,skip=0;
@@ -1158,7 +1252,7 @@ function mergeDB(nd){
 }
 
 // ================= router =================
-const views={dash,caixa,compras,freel,cantor,assin,nfs,relat};
+const views={dash,caixa,compras,freel,cantor,assin,diretoria,nfs,relat};
 function render(){
   try{views[tab]();footer()}
   catch(e){document.getElementById('main').innerHTML=
@@ -1203,7 +1297,7 @@ async function loadRole(u){
   applyRole(u);
 }
 function applyRole(u){
-  const esc=['dash','nfs','relat']; // exclusivos do administrador
+  const esc=['dash','nfs','relat','diretoria']; // exclusivos do administrador
   document.querySelectorAll('nav button').forEach(b=>{
     b.style.display=(!isAdmin()&&esc.includes(b.dataset.t))?'none':'';
   });
@@ -1254,7 +1348,7 @@ function contentKey(k,x){
 }
 function mergeStates(a,b){ // une local (a) e nuvem (b); registro mais recente vence; exclusões respeitadas
   const out={version:2,tomb:Object.assign({},a.tomb||{},b.tomb||{})};
-  ['caixa','compras','freelancers','cantores','assinadas','nfs'].forEach(k=>{
+  ['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{
     const map=new Map();
     [...(a[k]||[]),...(b[k]||[])].forEach(x=>{
       if(!x.id)x.id=uid();
