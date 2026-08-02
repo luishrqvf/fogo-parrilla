@@ -83,6 +83,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
   <button data-t="freel">👷 Freelancers</button>
   <button data-t="assin">✍️ Notas Assinadas</button>
   <button data-t="nfs">📄 Notas Fiscais</button>
+  <button data-t="relat">📑 Relatórios</button>
 </nav>
 <main id="main"></main>
 
@@ -788,6 +789,174 @@ function footer(){
   };
 }
 
+// ================= RELATÓRIOS =================
+let RF=null;
+function relat(){
+  const ini=MES+'-01', fim=(()=>{const[y,m]=MES.split('-').map(Number);return MES+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0')})();
+  if(!RF)RF={tipo:'caixa',de:ini,ate:fim,turno:'',q:'',sub:''};
+  const F=RF;
+  const inRange=x=>x.data&&x.data>=F.de&&x.data<=F.ate&&(!F.turno||(x.turno||'DIA')===F.turno);
+  const qq=(F.q||'').toLowerCase();
+  const SUBS={caixa:[['','Todos os turnos']],
+    freelancers:[['','Todos'],['DIARIA','Somente diárias'],['VT','Somente vale transporte'],['PIX','Somente PIX'],['DIN','Somente dinheiro']],
+    compras:[['','Todos'],['Custo','Somente custo'],['Despesa','Somente despesa']],
+    assinadas:[['','Todos']]};
+  let rows=[],cols=[],total=0,grupo={},gLabel='';
+  if(F.tipo==='caixa'){
+    rows=DB.caixa.filter(inRange).filter(c=>!qq||JSON.stringify(c).toLowerCase().includes(qq))
+      .sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
+    total=r2(rows.reduce((s,c)=>s+(+c.fat||0)+(+c.ifood||0)+(+c.whats||0),0));
+    gLabel='Resumo do período';
+  }else if(F.tipo==='freelancers'){
+    rows=DB.freelancers.filter(inRange).filter(f=>{
+      if(F.sub==='VT'&&!isVT(f))return false;
+      if(F.sub==='DIARIA'&&isVT(f))return false;
+      if(F.sub==='PIX'&&!f.pix)return false;
+      if(F.sub==='DIN'&&f.pix)return false;
+      return!qq||JSON.stringify(f).toLowerCase().includes(qq);
+    }).sort((a,b)=>a.data.localeCompare(b.data));
+    total=r2(rows.reduce((s,f)=>s+freeTotal(f),0));
+    rows.forEach(f=>grupo[f.nome]=r2((grupo[f.nome]||0)+freeTotal(f)));gLabel='Total por pessoa';
+  }else if(F.tipo==='compras'){
+    rows=DB.compras.filter(inRange).filter(c=>(!F.sub||c.tipo===F.sub)&&(!qq||JSON.stringify(c).toLowerCase().includes(qq)))
+      .sort((a,b)=>a.data.localeCompare(b.data));
+    total=r2(rows.reduce((s,c)=>s+(+c.valor||0),0));
+    rows.forEach(c=>grupo[c.fornecedor]=r2((grupo[c.fornecedor]||0)+(+c.valor||0)));gLabel='Total por fornecedor';
+  }else{
+    rows=DB.assinadas.filter(inRange).filter(a=>!qq||JSON.stringify(a).toLowerCase().includes(qq))
+      .sort((a,b)=>a.data.localeCompare(b.data));
+    total=r2(rows.reduce((s,a)=>s+(+a.valor||0),0));
+    rows.forEach(a=>grupo[a.nome]=r2((grupo[a.nome]||0)+(+a.valor||0)));gLabel='Total por pessoa';
+  }
+  const top=Object.entries(grupo).sort((a,b)=>b[1]-a[1]);
+  // tabela
+  let head='',body='';
+  if(F.tipo==='caixa'){
+    head=['Data','Turno','Resp.','Faturamento','Dinheiro','PIX/Cartão','Saídas','Cx final','Diferença'];
+    body=rows.map(c=>{const e=eff(c),sai=r2(e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0));
+      return[`${fmtD(c.data)} ${dow(c.data)}`,c.turno,c.resp||'—',
+        fmt(r2((+c.fat||0)+(+c.ifood||0)+(+c.whats||0))),fmt(c.din),fmt(c.cart),fmt(sai),fmt(c.cxFin),
+        `<span style="color:${difCx(c)<0?'var(--bad)':(difCx(c)>0?'var(--blue)':'var(--mut)')};font-weight:600">${fmt(difCx(c))}</span>`]});
+  }else if(F.tipo==='freelancers'){
+    head=['Pagamento','Turno','Nome','Tipo','Pgto','Dias','Valor'];
+    body=rows.map(f=>{const its=freeItens(f);
+      return[`${fmtD(f.data)} ${dow(f.data)}`,f.turno||'',f.nome,isVT(f)?'Vale transporte':'Diária',
+        f.pix?'PIX':'Dinheiro',isVT(f)?'—':its.length,fmt(freeTotal(f))]});
+  }else if(F.tipo==='compras'){
+    head=['Data','Turno','Fornecedor','Tipo','Valor'];
+    body=rows.map(c=>[`${fmtD(c.data)} ${dow(c.data)}`,c.turno||'',c.fornecedor,c.tipo,fmt(c.valor)]);
+  }else{
+    head=['Data','Turno','Nome','Valor'];
+    body=rows.map(a=>[`${fmtD(a.data)} ${dow(a.data)}`,a.turno||'',a.nome,fmt(a.valor)]);
+  }
+  const NOME={caixa:'Fechamentos de caixa',freelancers:'Pagamentos de freelancers',compras:'Compras',assinadas:'Notas assinadas'};
+  const extra=(()=>{
+    if(F.tipo!=='caixa')return'';
+    const s=k=>r2(rows.reduce((t,c)=>t+(+c[k]||0),0));
+    const sai=r2(rows.reduce((t,c)=>{const e=eff(c);return t+e.custo+e.desp+e.free+(+c.retirada||0)+(+c.moto||0)},0));
+    return`<div class="card"><div class="lbl">Resumo do período</div><table>
+      <tr><td>Faturamento</td><td class="r tot">${fmt(total)}</td></tr>
+      <tr><td>Dinheiro</td><td class="r">${fmt(s('din'))}</td></tr>
+      <tr><td>PIX/Cartão</td><td class="r">${fmt(s('cart'))}</td></tr>
+      <tr><td>iFood</td><td class="r">${fmt(s('ifood'))}</td></tr>
+      <tr><td>WhatsApp</td><td class="r">${fmt(s('whats'))}</td></tr>
+      <tr><td>Saídas</td><td class="r neg">${fmt(sai)}</td></tr>
+      <tr><td>Retiradas</td><td class="r">${fmt(s('retirada'))}</td></tr>
+      <tr><td>Moto</td><td class="r">${fmt(s('moto'))}</td></tr>
+      <tr><td>Diferenças</td><td class="r">${fmt(r2(rows.reduce((t,c)=>t+difCx(c),0)))}</td></tr>
+    </table></div>`;
+  })();
+  document.getElementById('main').innerHTML=`
+  <h2 style="margin-top:0">📑 Relatórios</h2>
+  <div class="card" style="margin-bottom:14px">
+    <div class="fgrid">
+      <label>Relatório<select id="r_tipo">
+        ${Object.entries(NOME).map(([k,v])=>`<option value="${k}" ${F.tipo===k?'selected':''}>${v}</option>`).join('')}
+      </select></label>
+      <label>De<input type="date" id="r_de" value="${F.de}"></label>
+      <label>Até<input type="date" id="r_ate" value="${F.ate}"></label>
+      <label>Turno<select id="r_turno">
+        <option value="" ${!F.turno?'selected':''}>Todos</option>
+        <option ${F.turno==='DIA'?'selected':''}>DIA</option>
+        <option ${F.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
+      <label>Filtro<select id="r_sub">${(SUBS[F.tipo]||[['','Todos']]).map(([v,l])=>`<option value="${v}" ${F.sub===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <label>Buscar<input id="r_q" placeholder="nome, fornecedor..." value="${F.q||''}"></label>
+    </div>
+    <div class="bar" style="margin:12px 0 0">
+      <button class="btn sec mini" id="r_mes">Mês atual</button>
+      <button class="btn sec mini" id="r_sem">Últimos 7 dias</button>
+      <button class="btn sec mini" id="r_30">Últimos 30 dias</button>
+      <span style="margin-left:auto"></span>
+      <button class="btn sec" id="r_print">🖨 Imprimir</button>
+      <button class="btn sec" id="r_wpp">📋 WhatsApp</button>
+      <button class="btn sec" id="r_csv">⬇ CSV</button>
+    </div>
+  </div>
+  <div class="bar"><b>${NOME[F.tipo]}</b>
+    <span class="muted">${fmtD(F.de)} a ${fmtD(F.ate)} · ${rows.length} registro(s)</span>
+    <span style="margin-left:auto" class="tot" style="font-size:18px">${F.tipo==='caixa'?'Faturamento: ':'Total: '}${fmt(total)}</span></div>
+  <div class="grid" style="grid-template-columns:${top.length||F.tipo==='caixa'?'2fr 1fr':'1fr'};align-items:start">
+    <div class="tw"><table><thead><tr>${head.map((h,i)=>`<th class="${i>=head.length-1?'r':''}">${h}</th>`).join('')}</tr></thead>
+    <tbody>${body.length?body.map(r=>`<tr>${r.map((v,i)=>`<td class="${i>=r.length-1?'r':''}">${v}</td>`).join('')}</tr>`).join(''):
+      `<tr><td colspan="${head.length}" class="muted" style="padding:18px;text-align:center">Nenhum registro no período.</td></tr>`}</tbody></table></div>
+    ${extra||(top.length?`<div class="card"><div class="lbl">${gLabel}</div><table>
+      ${top.map(([g,v])=>`<tr><td>${g}</td><td class="r tot">${fmt(v)}</td></tr>`).join('')}
+      <tr><td><b>TOTAL</b></td><td class="r tot">${fmt(total)}</td></tr></table></div>`:'')}
+  </div>`;
+  const upd=(k,v)=>{F[k]=v;if(k==='tipo')F.sub='';render()};
+  document.getElementById('r_tipo').onchange=e=>upd('tipo',e.target.value);
+  document.getElementById('r_de').onchange=e=>upd('de',e.target.value);
+  document.getElementById('r_ate').onchange=e=>upd('ate',e.target.value);
+  document.getElementById('r_turno').onchange=e=>upd('turno',e.target.value);
+  document.getElementById('r_sub').onchange=e=>upd('sub',e.target.value);
+  document.getElementById('r_q').oninput=e=>{F.q=e.target.value;render();
+    const el=document.getElementById('r_q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  const dm=n=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10)};
+  document.getElementById('r_mes').onclick=()=>{F.de=ini;F.ate=fim;render()};
+  document.getElementById('r_sem').onclick=()=>{F.de=dm(6);F.ate=dm(0);render()};
+  document.getElementById('r_30').onclick=()=>{F.de=dm(29);F.ate=dm(0);render()};
+  const txt=()=>{
+    const L=[`*FOGO PARRILLA — ${NOME[F.tipo].toUpperCase()}*`,`📅 ${fmtD(F.de)} a ${fmtD(F.ate)}${F.turno?' · turno '+F.turno:''}`,''];
+    body.slice(0,60).forEach(r=>L.push('• '+r.map(v=>String(v).replace(/<[^>]*>/g,'')).join(' · ')));
+    if(body.length>60)L.push(`… e mais ${body.length-60} registro(s)`);
+    L.push('',`*${F.tipo==='caixa'?'FATURAMENTO':'TOTAL'}: ${fmt(total)}*`);
+    if(top.length){L.push('',`*${gLabel.toUpperCase()}*`);top.forEach(([g,v])=>L.push(`${g}: ${fmt(v)}`))}
+    return L.join('\n');
+  };
+  document.getElementById('r_wpp').onclick=()=>copyText(txt(),'Relatório copiado! É só colar no WhatsApp.');
+  document.getElementById('r_csv').onclick=()=>{
+    const esc=v=>'"'+String(v).replace(/<[^>]*>/g,'').replace(/"/g,'""')+'"';
+    const csv=[head.map(esc).join(';'),...body.map(r=>r.map(esc).join(';'))].join('\r\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+    a.download=`relatorio-${F.tipo}-${F.de}_a_${F.ate}.csv`;a.click();
+  };
+  document.getElementById('r_print').onclick=()=>{
+    const w=window.open('','_blank','width=900,height=700');
+    if(!w){alert('Libere pop-ups para imprimir.');return}
+    w.document.write(`<html><head><title>${NOME[F.tipo]}</title><style>
+    @page{size:A4;margin:12mm}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#000}
+    h1{font-size:17px;margin:0}h2{font-size:13px;margin:2px 0 12px;font-weight:400;color:#555}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th{background:#eee;text-align:left;padding:5px;border:1px solid #bbb;font-size:11px}
+    td{padding:4px 5px;border:1px solid #ddd}
+    .r{text-align:right}.tot{font-size:14px;font-weight:bold;margin-top:10px;text-align:right}
+    .g{margin-top:14px;width:45%}
+    </style></head><body>
+    <h1>FOGO PARRILLA — ${NOME[F.tipo]}</h1>
+    <h2>Período: ${fmtD(F.de)} a ${fmtD(F.ate)}${F.turno?' · turno '+F.turno:''}${F.sub?' · '+F.sub:''}${F.q?' · busca: '+F.q:''} — ${rows.length} registro(s)</h2>
+    <table><thead><tr>${head.map((h,i)=>`<th class="${i>=head.length-1?'r':''}">${h}</th>`).join('')}</tr></thead>
+    <tbody>${body.map(r=>`<tr>${r.map((v,i)=>`<td class="${i>=r.length-1?'r':''}">${String(v).replace(/<[^>]*>/g,'')}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    <div class="tot">${F.tipo==='caixa'?'FATURAMENTO':'TOTAL'}: ${fmt(total)}</div>
+    ${top.length?`<table class="g"><thead><tr><th>${gLabel}</th><th class="r">Valor</th></tr></thead><tbody>
+      ${top.map(([g,v])=>`<tr><td>${g}</td><td class="r">${fmt(v)}</td></tr>`).join('')}</tbody></table>`:''}
+    <p style="margin-top:16px;color:#666">Emitido em ${new Date().toLocaleString('pt-BR')}</p>
+    </body></html>`);
+    w.document.close();w.focus();setTimeout(()=>{try{w.print()}catch(e){}},400);
+  };
+}
+
 // ================= importação de backup (mesclar/substituir) =================
 function askImportMode(nd){
   const dlg=document.getElementById('dlg');dlg.classList.remove('wide');
@@ -841,7 +1010,7 @@ function mergeDB(nd){
 }
 
 // ================= router =================
-const views={dash,caixa,compras,freel,assin,nfs};
+const views={dash,caixa,compras,freel,assin,nfs,relat};
 function render(){
   try{views[tab]();footer()}
   catch(e){document.getElementById('main').innerHTML=
