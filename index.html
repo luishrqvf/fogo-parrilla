@@ -388,7 +388,7 @@ function printCaixa(c){
   setTimeout(()=>{try{w.print()}catch(e){}},400);
 }
 function caixa(){
-  const rows=DB.caixa.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
+  const rows=DB.caixa.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data)||(a.turno==='NOITE'?-1:1));
   const t=sum(rows,c=>c.fat+c.ifood+c.whats);
   const CXFu=isAdmin()?CXF:CXF.filter(f=>['data','turno','resp','cxIni','dinDel','supr','retirada','moto','cxFin'].includes(f.k));
   document.getElementById('main').innerHTML=`
@@ -444,7 +444,7 @@ function wireEdit(list,fields,title){
 // ============ COMPRAS / FREELANCERS / ASSINADAS ============
 function listView({title,list,fields,cols,groupBy,addTitle,editTitle,adminGroup}){
   const showGroup=!adminGroup||isAdmin();
-  let rows=DB[list].filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
+  let rows=DB[list].filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
   const q=(window._q||'').toLowerCase();
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
   const tot=sum(rows,r=>r.valor);
@@ -650,7 +650,7 @@ function printFree(f){
   setTimeout(()=>{try{w.print()}catch(e){}},400);
 }
 function freel(){
-  let rows=DB.freelancers.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
+  let rows=DB.freelancers.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
   const q=(window._q||'').toLowerCase();
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
   const tot=r2(rows.reduce((s,f)=>s+freeTotal(f),0));
@@ -893,7 +893,7 @@ function printCantor(f){
 }
 function cantor(){
   DB.cantores=DB.cantores||[];
-  let rows=DB.cantores.filter(inMes).sort((a,b)=>a.data.localeCompare(b.data));
+  let rows=DB.cantores.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
   const q=(window._q||'').toLowerCase();
   if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
   const tot=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
@@ -1028,7 +1028,7 @@ function relat(){
   let rows=[],cols=[],total=0,grupo={},gLabel='';
   if(F.tipo==='caixa'){
     rows=DB.caixa.filter(inRange).filter(c=>!qq||JSON.stringify(c).toLowerCase().includes(qq))
-      .sort((a,b)=>a.data.localeCompare(b.data)||(a.turno==='DIA'?-1:1));
+      .sort((a,b)=>b.data.localeCompare(a.data)||(a.turno==='NOITE'?-1:1));
     total=r2(rows.reduce((s,c)=>s+(+c.fat||0)+(+c.ifood||0)+(+c.whats||0),0));
     gLabel='Resumo do período';
   }else if(F.tipo==='freelancers'){
@@ -1038,7 +1038,7 @@ function relat(){
       if(F.sub==='PIX'&&!f.pix)return false;
       if(F.sub==='DIN'&&f.pix)return false;
       return!qq||JSON.stringify(f).toLowerCase().includes(qq);
-    }).sort((a,b)=>a.data.localeCompare(b.data));
+    }).sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,f)=>s+freeTotal(f),0));
     rows.forEach(f=>grupo[f.nome]=r2((grupo[f.nome]||0)+freeTotal(f)));gLabel='Total por pessoa';
   }else if(F.tipo==='cantores'){
@@ -1046,23 +1046,23 @@ function relat(){
       if(F.sub==='PIX'&&!f.pix)return false;
       if(F.sub==='DIN'&&f.pix)return false;
       return!qq||JSON.stringify(f).toLowerCase().includes(qq);
-    }).sort((a,b)=>a.data.localeCompare(b.data));
+    }).sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
     rows.forEach(f=>grupo[f.nome]=r2((grupo[f.nome]||0)+(+f.valor||0)));gLabel='Total por cantor';
   }else if(F.tipo==='diretoria'){
     rows=(DB.diretoria||[]).filter(x=>x.data&&x.data>=F.de&&x.data<=F.ate)
       .filter(f=>(!F.sub||f.categoria===F.sub)&&(!qq||JSON.stringify(f).toLowerCase().includes(qq)))
-      .sort((a,b)=>a.data.localeCompare(b.data));
+      .sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
     rows.forEach(f=>grupo[f.categoria]=r2((grupo[f.categoria]||0)+(+f.valor||0)));gLabel='Total por categoria';
   }else if(F.tipo==='compras'){
     rows=DB.compras.filter(inRange).filter(c=>(!F.sub||c.tipo===F.sub)&&(!qq||JSON.stringify(c).toLowerCase().includes(qq)))
-      .sort((a,b)=>a.data.localeCompare(b.data));
+      .sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,c)=>s+(+c.valor||0),0));
     rows.forEach(c=>grupo[c.fornecedor]=r2((grupo[c.fornecedor]||0)+(+c.valor||0)));gLabel='Total por fornecedor';
   }else{
     rows=DB.assinadas.filter(inRange).filter(a=>!qq||JSON.stringify(a).toLowerCase().includes(qq))
-      .sort((a,b)=>a.data.localeCompare(b.data));
+      .sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,a)=>s+(+a.valor||0),0));
     rows.forEach(a=>grupo[a.nome]=r2((grupo[a.nome]||0)+(+a.valor||0)));gLabel='Total por pessoa';
   }
