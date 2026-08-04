@@ -81,6 +81,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
   <button data-t="caixa">💰 Caixa Diário</button>
   <button data-t="compras">🛒 Compras</button>
   <button data-t="freel">👷 Freelancers</button>
+  <button data-t="adiant">💵 Adiantamentos</button>
   <button data-t="cantor">🎤 Cantores</button>
   <button data-t="assin">✍️ Notas Assinadas</button>
   <button data-t="diretoria">🏛️ Diretoria</button>
@@ -91,7 +92,7 @@ body.light .pill.d{background:#d9ecfb;color:#1f6fb2}
 
 <dialog id="dlg"></dialog>
 
-<script id="seed" type="application/json">{"version": 2, "caixa": [], "compras": [], "freelancers": [], "cantores": [], "assinadas": [], "diretoria": [], "nfs": []}</script>
+<script id="seed" type="application/json">{"version": 2, "caixa": [], "compras": [], "freelancers": [], "adiantamentos": [], "cantores": [], "assinadas": [], "diretoria": [], "nfs": []}</script>
 <script>
 const fmt=v=>(v<0?'-':'')+'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtD=d=>{if(!d)return'—';const[y,m,dd]=String(d).split('-');return dd+'/'+m+'/'+(y||'').slice(2)};
@@ -109,7 +110,7 @@ function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2
 // data sugerida nos novos lançamentos: hoje (ou 1º dia, se estiver vendo outro mês)
 function hojeMes(){const h=new Date().toISOString().slice(0,10);return h.slice(0,7)===MES?h:MES+'-01'}
 load();
-['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
+['caixa','compras','freelancers','adiantamentos','cantores','assinadas','diretoria','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
 
 // ---- vínculo automático: compras/freelancers/assinadas alimentam o fechamento ----
 const r2=v=>Math.round(v*100)/100;
@@ -117,7 +118,7 @@ function linked(c){
   const m=x=>x.data===c.data&&(x.turno||'DIA')===c.turno;
   return{
     cantor:(DB.cantores||[]).filter(x=>m(x)&&!x.pix).reduce((s,x)=>s+(+x.valor||0),0),
-    free:DB.freelancers.filter(x=>m(x)&&!x.pix).reduce((s,x)=>s+(+x.valor||0),0),
+    free:DB.freelancers.filter(x=>m(x)&&!x.pix).reduce((s,x)=>s+Math.max(0,(+x.valor||0)-(+x.abate||0)),0),
     assin:DB.assinadas.filter(m).reduce((s,x)=>s+(+x.valor||0),0),
     custo:DB.compras.filter(x=>m(x)&&x.tipo==='Custo').reduce((s,x)=>s+(+x.valor||0),0),
     desp:DB.compras.filter(x=>m(x)&&x.tipo!=='Custo').reduce((s,x)=>s+(+x.valor||0),0)
@@ -213,12 +214,16 @@ function dash(){
   const nfs=DB.nfs.filter(inMes);
   const nfTot=sum(nfs,n=>n.valor);
   const freeTot=r2(DB.freelancers.filter(inMes).reduce((s,f)=>s+freeTotal(f),0));
-  const freePix=r2(DB.freelancers.filter(f=>inMes(f)&&f.pix).reduce((s,f)=>s+freeTotal(f),0));
+  const freePix=r2(DB.freelancers.filter(f=>inMes(f)&&f.pix).reduce((s,f)=>s+Math.max(0,freeTotal(f)-(+f.abate||0)),0));
+  const adiTot=r2((DB.adiantamentos||[]).filter(inMes).reduce((s,f)=>s+(+f.valor||0),0));
+  const adiAberto=r2([...new Set([...(DB.adiantamentos||[]).map(a=>norm(a.nome)),
+    ...DB.freelancers.filter(f=>+f.abate).map(f=>norm(f.nome))].filter(Boolean))]
+    .reduce((s,n)=>s+Math.max(0,saldoAdiant(n)),0));
   const cantTot=r2((DB.cantores||[]).filter(inMes).reduce((s,f)=>s+(+f.valor||0),0));
   const cantPix=r2((DB.cantores||[]).filter(f=>inMes(f)&&f.pix).reduce((s,f)=>s+(+f.valor||0),0));
   const assinTot=sum(DB.assinadas.filter(inMes),f=>f.valor);
   const dirTot=r2((DB.diretoria||[]).filter(inMes).reduce((s,f)=>s+(+f.valor||0),0));
-  const gastos=r2(nfTot+saidas+freePix+cantPix+dirTot); // PIX não sai do caixa, mas é gasto
+  const gastos=r2(nfTot+saidas+freePix+cantPix+dirTot+adiTot); // PIX e adiantamentos não saem do caixa, mas são gastos
   const lucro=fat-gastos;
   const byT=t=>cx.filter(c=>c.turno===t);
   const fatDia=sum(byT('DIA'),c=>c.fat+c.ifood+c.whats), fatNoite=sum(byT('NOITE'),c=>c.fat+c.ifood+c.whats);
@@ -236,6 +241,8 @@ function dash(){
     ${k('Freelancers',freeTot)}
     ${k('Cantores',cantTot)}
     ${k('Diretoria',dirTot,'bad')}
+    ${k('Adiantamentos',adiTot)}
+    ${k('Adiant. em aberto',adiAberto,'fire')}
     ${k('Notas assinadas',assinTot)}
     ${k('Gastos totais',gastos,'bad')}
     ${k('Resultado',lucro,lucro>=0?'ok':'bad')}
@@ -518,6 +525,10 @@ function freeForm(title,init,onOk){
       <label style="justify-content:flex-end"><span style="display:flex;align-items:center;gap:6px;color:var(--tx);font-size:14px;padding:8px 0">
         <input type="checkbox" id="ff_pix" ${init.pix?'checked':''} style="width:16px;height:16px"> Pago via PIX</span>
         <span class="muted" style="font-size:11px">não sai do caixa</span></label>
+      <label style="justify-content:flex-end"><span style="display:flex;align-items:center;gap:6px;color:var(--tx);font-size:14px;padding:8px 0">
+        <input type="checkbox" id="ff_ab" ${+init.abate?'checked':''} style="width:16px;height:16px"> Abater adiantamento</span>
+        <span class="muted" style="font-size:11px" id="ff_sd">—</span></label>
+      <label>Valor a abater R$<input type="number" step="0.01" min="0" id="ff_abv" value="${+init.abate||''}" ${+init.abate?'':'disabled'}></label>
     </div>
     <div class="muted" style="margin-bottom:6px">Dias e turnos trabalhados (HE = horas extras):</div>
     <div style="overflow:auto;max-height:40vh"><table><thead><tr><th>Dia</th><th>Turno</th><th>Função</th><th class="r">Diária R$</th><th class="r">HE (h)</th><th class="r">HE R$</th><th></th></tr></thead><tbody>
@@ -533,15 +544,45 @@ function freeForm(title,init,onOk){
     <div class="bar" style="margin:8px 0">
       <button class="btn sec mini" id="ff_add">+ adicionar dia</button>
       <span style="margin-left:auto" class="tot" id="ff_tot">Total: ${fmt(totC())}</span>
+      <span class="muted" id="ff_liq"></span>
     </div>
     <div class="dlgbar">
       <button class="btn sec" id="ff_cancel">Cancelar</button>
       <button class="btn sec" id="ff_save">Salvar</button>
       <button class="btn" id="ff_print">💾 Salvar e imprimir 🖨</button>
     </div>`;
+    // ---- adiantamento ----
+    const elNome=dlg.querySelector('#ff_nome'),elAb=dlg.querySelector('#ff_ab'),
+          elAbv=dlg.querySelector('#ff_abv'),elSd=dlg.querySelector('#ff_sd'),elLiq=dlg.querySelector('#ff_liq');
+    const saldoAtual=()=>{const n=elNome.value;if(!n)return 0;
+      const jaAbatido=(init&&+init.abate)||0; // ao editar, devolve o que já estava abatido
+      return r2(saldoAdiant(n)+jaAbatido)};
+    const refresh=()=>{
+      const sd=saldoAtual();
+      elSd.textContent=elNome.value?(sd>0.009?'saldo: '+fmt(sd):'sem saldo'):'—';
+      elSd.style.color=sd>0.009?'var(--fire2)':'var(--mut)';
+      elAb.disabled=sd<=0.009;
+      if(elAb.disabled&&elAb.checked&&!(+init.abate)){elAb.checked=false}
+      elAbv.disabled=!elAb.checked;
+      if(!elAb.checked)elAbv.value='';
+      const ab=Math.min(parseFloat(elAbv.value)||0,sd,totC());
+      elLiq.textContent=ab?`· abatendo ${fmt(ab)} → líquido ${fmt(r2(totC()-ab))}`:'';
+    };
+    elNome.oninput=refresh;
+    elAb.onchange=()=>{
+      if(elAb.checked){const sd=saldoAtual();elAbv.disabled=false;
+        elAbv.value=Math.min(sd,totC()).toFixed(2)}
+      refresh();
+    };
+    elAbv.oninput=()=>{const sd=saldoAtual();
+      let v=parseFloat(elAbv.value)||0;
+      if(v>sd){v=sd;elAbv.value=sd.toFixed(2)}
+      if(v>totC()){elAbv.value=totC().toFixed(2)}
+      refresh()};
     dlg.querySelectorAll('[data-k]').forEach(el=>{el.oninput=el.onchange=()=>{
       const k=el.dataset.k;itens[+el.dataset.i][k]=(k==='data'||k==='turno'||k==='funcao')?el.value:(parseFloat(el.value)||0);
-      dlg.querySelector('#ff_tot').textContent='Total: '+fmt(totC());}});
+      dlg.querySelector('#ff_tot').textContent='Total: '+fmt(totC());refresh();}});
+    refresh();
     dlg.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
       itens.splice(+b.dataset.del,1);
       if(!itens.length)itens.push({data:MES+'-01',turno:'DIA',valor:0,he:0,heValor:0});
@@ -557,8 +598,11 @@ function freeForm(title,init,onOk){
       if(!nome||!data){alert('Preencha nome e data do pagamento.');return}
       const clean=itens.filter(i=>i.data);
       if(!clean.length){alert('Lance ao menos um dia trabalhado.');return}
+      const totBruto=r2(clean.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0));
+      const abate=dlg.querySelector('#ff_ab').checked?
+        r2(Math.min(parseFloat(dlg.querySelector('#ff_abv').value)||0,saldoAtual(),totBruto)):0;
       const rec={nome:nome.toUpperCase(),data,turno:dlg.querySelector('#ff_turno').value,
-                 pix:dlg.querySelector('#ff_pix').checked,itens:clean,
+                 pix:dlg.querySelector('#ff_pix').checked,abate,itens:clean,
                  valor:r2(clean.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0))};
       dlg.close();onOk(rec,print);
     };
@@ -662,6 +706,9 @@ function printFree(f){
   <div class="line"></div>
   <div>Dias trabalhados: ${its.length}${heTot?' · Horas extras: '+heTot+'h':''}</div>
   <div class="tot">TOTAL: ${fmt(freeTotal(f))}</div>
+  ${+f.abate?`<div style="display:flex;justify-content:space-between">(-) Adiantamento<span>${fmt(f.abate)}</span></div>
+  <div class="tot">LIQUIDO: ${fmt(r2(freeTotal(f)-(+f.abate||0)))}</div>
+  <div class="c">Saldo restante de adiantamento: ${fmt(Math.max(0,saldoAdiant(f.nome)))}</div>`:''}
   <div class="c">FORMA DE PAGAMENTO: ${f.pix?'PIX':'DINHEIRO'}</div>
   <div class="line"></div>
   <div>Declaro que recebi a importancia acima descrita, nada mais tendo a receber pelos dias relacionados.</div>
@@ -686,7 +733,7 @@ function freel(){
     <button class="btn" id="add">+ Novo pagamento</button></div>
   <p class="muted" style="margin:0 0 10px">Para pagamento semanal, lance todos os dias/turnos trabalhados e as horas extras. O recibo sai na impressora térmica (bobina 80mm) com campo de assinatura, e o total entra no caixa do dia/turno do pagamento.</p>
   <div class="grid" style="grid-template-columns:${isAdmin()?'2fr 1fr':'1fr'};align-items:start">
-    <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th>Tipo</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th></th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th>Pagto</th><th>Turno</th><th>Nome</th><th>Tipo</th><th class="r">Dias</th><th class="r">HE</th><th class="r">Total</th><th class="r">Adiant.</th><th class="r">Líquido</th><th></th></tr></thead><tbody>
     ${rows.map(f=>{const its=freeItens(f);const heH=its.reduce((s,i)=>s+(+i.he||0),0);
       return`<tr><td>${fmtD(f.data)} <span class="muted">${dow(f.data)}</span></td>
       <td>${pillT(f)}</td><td>${f.nome}</td>
@@ -695,6 +742,8 @@ function freel(){
       <td class="r" title="${isVT(f)?'':its.map(i=>fmtD(i.data)+' '+(i.turno||'')+(i.funcao?' ('+i.funcao+')':'')).join(' · ')}">${isVT(f)?'—':its.length}</td>
       <td class="r">${heH&&!isVT(f)?heH+'h':'—'}</td>
       <td class="r tot">${fmt(freeTotal(f))}</td>
+      <td class="r ${+f.abate?'neg':'muted'}">${+f.abate?'-'+fmt(f.abate):'—'}</td>
+      <td class="r" style="font-weight:700">${fmt(r2(freeTotal(f)-(+f.abate||0)))}</td>
       <td><button class="btn mini sec" data-p="${f.id}" title="Imprimir recibo">🖨</button>
           <button class="btn mini sec" data-e="${f.id}">✎</button>
           ${isAdmin()?`<button class="btn mini danger" data-d="${f.id}">✕</button>`:''}</td></tr>`}).join('')}
@@ -846,6 +895,125 @@ function footer(){
     });
     e.target.value='';
   };
+}
+
+// ================= ADIANTAMENTOS =================
+const norm=s=>String(s||'').trim().toUpperCase();
+function adiantados(nome){ // total adiantado à pessoa (todos os meses)
+  return r2((DB.adiantamentos||[]).filter(a=>norm(a.nome)===norm(nome)).reduce((s,a)=>s+(+a.valor||0),0));
+}
+function abatidos(nome){ // total já descontado em pagamentos
+  return r2(DB.freelancers.filter(f=>norm(f.nome)===norm(nome)).reduce((s,f)=>s+(+f.abate||0),0));
+}
+function saldoAdiant(nome){return r2(adiantados(nome)-abatidos(nome))}
+function adiantForm(title,init,onOk){
+  const dlg=document.getElementById('dlg');dlg.classList.remove('wide');
+  const nomes=[...new Set([...(DB.adiantamentos||[]).map(a=>a.nome),...DB.freelancers.map(f=>f.nome)].filter(Boolean).map(norm))].sort();
+  dlg.innerHTML=`<datalist id="adnomes">${nomes.map(n=>`<option value="${n}">`).join('')}</datalist>
+  <h3>💵 ${title}</h3>
+  <div class="fgrid">
+    <label>Funcionário *<input id="a_nome" list="adnomes" value="${init.nome||''}"></label>
+    <label>Data *<input type="date" id="a_data" value="${init.data||hojeMes()}"></label>
+    <label>Turno<select id="a_turno"><option ${init.turno!=='NOITE'?'selected':''}>DIA</option><option ${init.turno==='NOITE'?'selected':''}>NOITE</option></select></label>
+    <label>Valor R$ *<input type="number" step="0.01" min="0" id="a_valor" value="${init.valor||''}"></label>
+    <label>Observação<input id="a_obs" value="${init.obs||''}"></label>
+    <label style="justify-content:flex-end"><span style="display:flex;align-items:center;gap:6px;color:var(--tx);font-size:14px;padding:8px 0">
+      <input type="checkbox" id="a_pix" ${init.pix?'checked':''} style="width:16px;height:16px"> Pago via PIX</span>
+      <span class="muted" style="font-size:11px">apenas informativo</span></label>
+  </div>
+  <p class="muted" style="margin-top:8px">Adiantamentos não entram nas saídas do caixa diário — são controlados pelo saldo do funcionário.</p>
+  <div id="a_saldo" class="muted" style="margin-top:6px"></div>
+  <div class="dlgbar">
+    <button class="btn sec" id="a_cancel">Cancelar</button>
+    <button class="btn" id="a_ok">Salvar</button>
+  </div>`;
+  dlg.showModal();
+  const showSaldo=()=>{const n=dlg.querySelector('#a_nome').value;
+    dlg.querySelector('#a_saldo').innerHTML=n?`Saldo atual de <b>${norm(n)}</b>: <b style="color:var(--fire2)">${fmt(saldoAdiant(n))}</b> a descontar`:''};
+  dlg.querySelector('#a_nome').oninput=showSaldo;showSaldo();
+  dlg.querySelector('#a_cancel').onclick=()=>dlg.close();
+  dlg.querySelector('#a_ok').onclick=()=>{
+    const nome=dlg.querySelector('#a_nome').value.trim();
+    const data=dlg.querySelector('#a_data').value;
+    const valor=parseFloat(dlg.querySelector('#a_valor').value)||0;
+    if(!nome||!data||!valor){alert('Preencha funcionário, data e valor.');return}
+    dlg.close();
+    onOk({nome:norm(nome),data,turno:dlg.querySelector('#a_turno').value,valor:r2(valor),
+      pix:dlg.querySelector('#a_pix').checked,obs:dlg.querySelector('#a_obs').value.trim()});
+  };
+  setTimeout(()=>dlg.querySelector('#a_nome').focus(),60);
+}
+function printAdiant(a){
+  const w=window.open('','_blank','width=400,height=520');
+  if(!w){alert('Libere pop-ups para imprimir o recibo.');return}
+  w.document.write(`<html><head><title>Adiantamento ${a.nome}</title><style>
+  @page{size:80mm auto;margin:2mm}
+  body{font-family:'Courier New',monospace;font-size:12px;width:72mm;margin:0;color:#000;background:#fff}
+  h1{font-size:15px;text-align:center;margin:2px 0;letter-spacing:1px}
+  .c{text-align:center}.line{border-top:1px dashed #000;margin:5px 0}
+  .tot{font-size:15px;font-weight:bold;text-align:center;margin:6px 0}
+  .sig{margin-top:36px;border-top:1px solid #000;text-align:center;padding-top:3px;font-size:11px}
+  </style></head><body>
+  <h1>FOGO PARRILLA</h1><div class="c">RECIBO DE ADIANTAMENTO</div>
+  <div class="line"></div>
+  <div>NOME: <b>${a.nome}</b></div>
+  <div>DATA: ${fmtD(a.data)} ${dow(a.data)} — ${a.turno||''}</div>
+  ${a.obs?`<div>OBS: ${a.obs}</div>`:''}
+  <div class="line"></div>
+  <div class="tot">${fmt(a.valor)}</div>
+  <div class="c">FORMA: ${a.pix?'PIX':'DINHEIRO'}</div>
+  <div class="line"></div>
+  <div>Declaro que recebi o valor acima como ADIANTAMENTO, a ser descontado dos meus proximos pagamentos.</div>
+  <div class="sig">ASSINATURA — ${a.nome}</div>
+  <div class="c" style="margin-top:8px">Emitido em ${new Date().toLocaleString('pt-BR')}</div>
+  </body></html>`);
+  w.document.close();w.focus();setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
+function adiant(){
+  DB.adiantamentos=DB.adiantamentos||[];
+  let rows=DB.adiantamentos.filter(inMes).sort((a,b)=>b.data.localeCompare(a.data));
+  const q=(window._q||'').toLowerCase();
+  if(q)rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  const tot=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
+  // saldos de todas as pessoas (histórico completo)
+  const pessoas=[...new Set([...(DB.adiantamentos||[]).map(a=>norm(a.nome)),
+    ...DB.freelancers.filter(f=>+f.abate).map(f=>norm(f.nome))].filter(Boolean))];
+  const saldos=pessoas.map(n=>({n,ad:adiantados(n),ab:abatidos(n),sd:saldoAdiant(n)}))
+    .sort((a,b)=>b.sd-a.sd||a.n.localeCompare(b.n));
+  const aberto=r2(saldos.reduce((s,x)=>s+Math.max(0,x.sd),0));
+  document.getElementById('main').innerHTML=`
+  <div class="bar"><h2 style="margin:0">💵 Adiantamentos</h2>
+    <span class="muted">${rows.length} no mês · <span class="tot">${fmt(tot)}</span> · em aberto: <b style="color:var(--fire2)">${fmt(aberto)}</b></span>
+    <input class="search" id="q" placeholder="🔍 funcionário..." value="${window._q||''}">
+    <button class="btn" id="add">+ Novo adiantamento</button></div>
+  <p class="muted" style="margin:0 0 10px">Ao pagar o freelancer, marque <b>Abater adiantamento</b> para descontar do saldo. O saldo diminui até zerar.</p>
+  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start">
+    <div class="tw"><table><thead><tr><th>Data</th><th>Turno</th><th>Funcionário</th><th>Obs.</th><th>Forma</th><th class="r">Valor</th><th></th></tr></thead><tbody>
+    ${rows.length?rows.map(a=>`<tr><td>${fmtD(a.data)} <span class="muted">${dow(a.data)}</span></td>
+      <td>${pillT(a)}</td><td>${a.nome}</td><td class="muted">${a.obs||''}</td>
+      <td>${a.pix?'<span class="pill d">PIX</span>':'<span class="pill c">Dinheiro</span>'}</td>
+      <td class="r tot">${fmt(a.valor)}</td>
+      <td><button class="btn mini sec" data-p="${a.id}" title="Imprimir recibo">🖨</button>
+          <button class="btn mini sec" data-e="${a.id}">✎</button>
+          ${isAdmin()?`<button class="btn mini danger" data-d="${a.id}">✕</button>`:''}</td></tr>`).join('')
+      :'<tr><td colspan="7" class="muted" style="padding:18px;text-align:center">Nenhum adiantamento neste mês.</td></tr>'}
+    </tbody></table></div>
+    <div class="card"><div class="lbl">Saldo por funcionário</div>
+      <table><tr><th>Nome</th><th class="r">Adiantado</th><th class="r">Abatido</th><th class="r">Saldo</th></tr>
+      ${saldos.map(x=>`<tr><td>${x.n}</td><td class="r muted">${fmt(x.ad)}</td><td class="r muted">${fmt(x.ab)}</td>
+        <td class="r" style="font-weight:700;color:${x.sd>0.009?'var(--fire2)':'var(--ok)'}">${x.sd>0.009?fmt(x.sd):'quitado ✓'}</td></tr>`).join('')
+        ||'<tr><td colspan="4" class="muted">Nenhum adiantamento registrado.</td></tr>'}</table></div>
+  </div>`;
+  document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
+    const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
+  document.getElementById('add').onclick=()=>adiantForm('Novo adiantamento',{data:hojeMes(),turno:'DIA'},
+    rec=>{rec.id=uid();rec.mt=Date.now();DB.adiantamentos.push(rec);save();render();
+      if(confirm('Adiantamento salvo. Imprimir recibo com assinatura?'))printAdiant(rec)});
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const it=DB.adiantamentos.find(x=>x.id===b.dataset.e);
+    adiantForm('Editar adiantamento',it,rec=>{Object.assign(it,rec);it.mt=Date.now();save();render()})});
+  document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>printAdiant(DB.adiantamentos.find(x=>x.id===b.dataset.p)));
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('adiantamentos',b.dataset.d));
 }
 
 // ================= CANTORES =================
@@ -1044,6 +1212,7 @@ function relat(){
   const SUBS={caixa:[['','Todos os turnos']],
     cantores:[['','Todos'],['PIX','Somente PIX'],['DIN','Somente dinheiro']],
     diretoria:[['','Todas as categorias'],...DIRCAT.map(c=>[c,c])],
+    adiantamentos:[['','Todos'],['ABERTO','Somente com saldo em aberto']],
     freelancers:[['','Todos'],['DIARIA','Somente diárias'],['VT','Somente vale transporte'],['PIX','Somente PIX'],['DIN','Somente dinheiro']],
     compras:[['','Todos'],['Custo','Somente custo'],['Despesa','Somente despesa']],
     assinadas:[['','Todos']]};
@@ -1071,6 +1240,12 @@ function relat(){
     }).sort((a,b)=>b.data.localeCompare(a.data));
     total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
     rows.forEach(f=>grupo[f.nome]=r2((grupo[f.nome]||0)+(+f.valor||0)));gLabel='Total por cantor';
+  }else if(F.tipo==='adiantamentos'){
+    rows=(DB.adiantamentos||[]).filter(inRange)
+      .filter(f=>(!F.sub||saldoAdiant(f.nome)>0.009)&&(!qq||JSON.stringify(f).toLowerCase().includes(qq)))
+      .sort((a,b)=>b.data.localeCompare(a.data));
+    total=r2(rows.reduce((s,f)=>s+(+f.valor||0),0));
+    rows.forEach(f=>grupo[norm(f.nome)]=r2((grupo[norm(f.nome)]||0)+(+f.valor||0)));gLabel='Total adiantado por pessoa';
   }else if(F.tipo==='diretoria'){
     rows=(DB.diretoria||[]).filter(x=>x.data&&x.data>=F.de&&x.data<=F.ate)
       .filter(f=>(!F.sub||f.categoria===F.sub)&&(!qq||JSON.stringify(f).toLowerCase().includes(qq)))
@@ -1105,6 +1280,10 @@ function relat(){
   }else if(F.tipo==='cantores'){
     head=['Data','Turno','Cantor / banda','Obs.','Pgto','Valor'];
     body=rows.map(f=>[`${fmtD(f.data)} ${dow(f.data)}`,f.turno||'',f.nome,f.obs||'',f.pix?'PIX':'Dinheiro',fmt(f.valor)]);
+  }else if(F.tipo==='adiantamentos'){
+    head=['Data','Turno','Funcionário','Obs.','Forma','Valor','Saldo atual'];
+    body=rows.map(f=>[`${fmtD(f.data)} ${dow(f.data)}`,f.turno||'',f.nome,f.obs||'',f.pix?'PIX':'Dinheiro',
+      fmt(f.valor),saldoAdiant(f.nome)>0.009?fmt(saldoAdiant(f.nome)):'quitado']);
   }else if(F.tipo==='diretoria'){
     head=['Data','Categoria','Descrição','Fornecedor','Tipo','Valor'];
     body=rows.map(f=>[fmtD(f.data),f.categoria||'',f.descricao||'',f.fornecedor||'',f.tipo||'Custo',fmt(f.valor)]);
@@ -1115,7 +1294,7 @@ function relat(){
     head=['Data','Turno','Nome','Valor'];
     body=rows.map(a=>[`${fmtD(a.data)} ${dow(a.data)}`,a.turno||'',a.nome,fmt(a.valor)]);
   }
-  const NOME={caixa:'Fechamentos de caixa',freelancers:'Pagamentos de freelancers',cantores:'Pagamentos a cantores',diretoria:'Pagamentos da diretoria',compras:'Compras',assinadas:'Notas assinadas'};
+  const NOME={caixa:'Fechamentos de caixa',freelancers:'Pagamentos de freelancers',cantores:'Pagamentos a cantores',adiantamentos:'Adiantamentos',diretoria:'Pagamentos da diretoria',compras:'Compras',assinadas:'Notas assinadas'};
   const extra=(()=>{
     if(F.tipo!=='caixa')return'';
     const s=k=>r2(rows.reduce((t,c)=>t+(+c[k]||0),0));
@@ -1239,7 +1418,7 @@ function askImportMode(nd){
   dlg.querySelector('#im_cancel').onclick=()=>dlg.close();
   dlg.querySelector('#im_replace').onclick=()=>{dlg.close();
     if(!confirm('Tem certeza? TODOS os dados deste aparelho serão substituídos pelos do arquivo.'))return;
-    DB=nd;['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
+    DB=nd;['caixa','compras','freelancers','adiantamentos','cantores','assinadas','diretoria','nfs'].forEach(k=>{DB[k]=DB[k]||[];DB[k].forEach(x=>{if(!x.id)x.id=uid()})});
     migrate();normalize();save();drawMes();render();alert('Backup importado (substituição completa).')};
   dlg.querySelector('#im_merge').onclick=()=>{dlg.close();mergeDB(nd)};
 }
@@ -1262,6 +1441,7 @@ function mergeDB(nd){
     freelancers:x=>['f',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     cantores:x=>['k',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     diretoria:x=>['d',x.data,x.categoria,x.descricao||'',(+x.valor||0).toFixed(2)].join('|'),
+    adiantamentos:x=>['v',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     assinadas:x=>['a',x.data,x.turno,x.nome,(+x.valor||0).toFixed(2)].join('|'),
     nfs:x=>['n',x.nf,(+x.valor||0).toFixed(2)].join('|')};
   let add=0,skip=0;
@@ -1279,7 +1459,7 @@ function mergeDB(nd){
 }
 
 // ================= router =================
-const views={dash,caixa,compras,freel,cantor,assin,diretoria,nfs,relat};
+const views={dash,caixa,compras,freel,adiant,cantor,assin,diretoria,nfs,relat};
 function render(){
   try{views[tab]();footer()}
   catch(e){document.getElementById('main').innerHTML=
@@ -1375,7 +1555,7 @@ function contentKey(k,x){
 }
 function mergeStates(a,b){ // une local (a) e nuvem (b); registro mais recente vence; exclusões respeitadas
   const out={version:2,tomb:Object.assign({},a.tomb||{},b.tomb||{})};
-  ['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{
+  ['caixa','compras','freelancers','adiantamentos','cantores','assinadas','diretoria','nfs'].forEach(k=>{
     const map=new Map();
     [...(a[k]||[]),...(b[k]||[])].forEach(x=>{
       if(!x.id)x.id=uid();
