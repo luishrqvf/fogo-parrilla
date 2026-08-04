@@ -254,6 +254,9 @@ function dash(){
   </div>
   <div class="grid charts" style="grid-template-columns:1fr 1fr">
     <div class="chartbox"><h3>Canais de venda — Salão × iFood × WhatsApp</h3><canvas id="ch3"></canvas></div>
+    <div class="chartbox"><h3>Faturamento do mês — DIA × NOITE</h3><canvas id="ch5"></canvas></div>
+  </div>
+  <div class="grid charts" style="grid-template-columns:1fr">
     <div class="chartbox"><h3>Canais por dia</h3><canvas id="ch4"></canvas></div>
   </div>`;
   const dd=dias.map(d=>byT('DIA').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
@@ -269,6 +272,7 @@ function dash(){
         return ` ${ctx.label}: ${fmt(ctx.parsed)} (${t?(ctx.parsed/t*100).toFixed(1).replace('.',','):0}%)`}}}}}});
   donut('ch2',['Cartão/PIX','Dinheiro'],[cart,din],['#ff7a1a','#4cc27a']);
   donut('ch3',['Salão','iFood','WhatsApp'],[r2(fat-ifood-whats),ifood,whats],['#ff7a1a','#e5544b','#5aa9e6']);
+  donut('ch5',['DIA','NOITE'],[fatDia,fatNoite],['#ffb35c','#7c5cd6']);
   const salaoD=dias.map(d=>r2(cx.filter(c=>c.data===d).reduce((s,c)=>s+(+c.fat||0),0)));
   const ifoodD=dias.map(d=>r2(cx.filter(c=>c.data===d).reduce((s,c)=>s+(+c.ifood||0),0)));
   const whatsD=dias.map(d=>r2(cx.filter(c=>c.data===d).reduce((s,c)=>s+(+c.whats||0),0)));
