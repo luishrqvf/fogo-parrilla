@@ -106,6 +106,8 @@ function load(){
 }
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){alert('Não foi possível salvar no navegador.')}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+// data sugerida nos novos lançamentos: hoje (ou 1º dia, se estiver vendo outro mês)
+function hojeMes(){const h=new Date().toISOString().slice(0,10);return h.slice(0,7)===MES?h:MES+'-01'}
 load();
 ['caixa','compras','freelancers','cantores','assinadas','diretoria','nfs'].forEach(k=>{(DB[k]||[]).forEach(x=>{if(!x.id)x.id=uid()})});
 
@@ -429,10 +431,28 @@ function caixa(){
           <button class="btn mini sec" data-e="${c.id}">✎</button>
           ${isAdmin()?`<button class="btn mini danger" data-d="${c.id}">✕</button>`:''}</td></tr>`}).join('')}
   </tbody></table></div>`;
-  document.getElementById('add').onclick=()=>openForm('💰 Novo fechamento',CXFu,o=>{o.id=uid();o.mt=Date.now();DB.caixa.push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.getElementById('add').onclick=()=>{
+    const hoje=hojeMes();
+    const usados=t=>DB.caixa.some(c=>c.data===hoje&&(c.turno||'DIA')===t);
+    const turnoLivre=!usados('DIA')?'DIA':(!usados('NOITE')?'NOITE':null);
+    if(!turnoLivre){alert(`Os turnos DIA e NOITE de ${fmtD(hoje)} já foram lançados.\n\nUse o botão ✎ na linha correspondente para editar.`);return}
+    openForm('💰 Novo fechamento',CXFu,o=>{
+      if(DB.caixa.some(c=>c.data===o.data&&(c.turno||'DIA')===(o.turno||'DIA'))){
+        alert(`Já existe fechamento de ${fmtD(o.data)} no turno ${o.turno}.\n\nEdite o lançamento existente pelo botão ✎.`);return}
+      o.id=uid();o.mt=Date.now();DB.caixa.push(o);save();render();
+    },{data:hoje,turno:turnoLivre});
+  };
   document.querySelectorAll('[data-pc]').forEach(b=>b.onclick=()=>printCaixa(DB.caixa.find(x=>x.id===b.dataset.pc)));
   document.querySelectorAll('[data-wc]').forEach(b=>b.onclick=()=>copyText(caixaTxt(DB.caixa.find(x=>x.id===b.dataset.wc)),'Relatório copiado! É só colar no WhatsApp.'));
-  wireEdit('caixa',CXFu,'💰 Editar fechamento');
+  document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const it=DB.caixa.find(x=>x.id===b.dataset.e);
+    openForm('💰 Editar fechamento',CXFu,o=>{
+      if(DB.caixa.some(c=>c.id!==it.id&&c.data===o.data&&(c.turno||'DIA')===(o.turno||'DIA'))){
+        alert(`Já existe outro fechamento de ${fmtD(o.data)} no turno ${o.turno}.`);return}
+      Object.assign(it,o);it.mt=Date.now();save();render();
+    },it);
+  });
+  document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>del('caixa',b.dataset.d));
 }
 function wireEdit(list,fields,title){
   document.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
@@ -466,7 +486,7 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle,adminGroup}
   </div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
-  document.getElementById('add').onclick=()=>openForm(addTitle||'Novo lançamento',fields,o=>{o.id=uid();o.mt=Date.now();DB[list].push(o);save();render()},{data:MES+'-01',turno:'DIA'});
+  document.getElementById('add').onclick=()=>openForm(addTitle||'Novo lançamento',fields,o=>{o.id=uid();o.mt=Date.now();DB[list].push(o);save();render()},{data:hojeMes(),turno:'DIA'});
   wireEdit(list,fields,editTitle||'Editar lançamento');
 }
 const pillT=r=>`<span class="pill ${r.turno==='DIA'?'dia':'noite'}">${r.turno||''}</span>`;
@@ -797,7 +817,7 @@ function nfs(){
   </tbody></table></div>`;
   document.getElementById('q').oninput=e=>{window._q=e.target.value;render();
     const el=document.getElementById('q');el.focus();el.setSelectionRange(el.value.length,el.value.length)};
-  document.getElementById('add').onclick=()=>openForm('Nova nota fiscal',fields,o=>{o.id=uid();o.mt=Date.now();DB.nfs.push(o);save();render()},{data:MES+'-01',tipo:'Custo'});
+  document.getElementById('add').onclick=()=>openForm('Nova nota fiscal',fields,o=>{o.id=uid();o.mt=Date.now();DB.nfs.push(o);save();render()},{data:hojeMes(),tipo:'Custo'});
   document.getElementById('csvImp').onchange=e=>{if(e.target.files.length)handleNfImport([...e.target.files])};
   wireEdit('nfs',fields,'Editar nota fiscal');
 }
