@@ -491,9 +491,10 @@ function listView({title,list,fields,cols,groupBy,addTitle,editTitle,adminGroup}
 }
 const pillT=r=>`<span class="pill ${r.turno==='DIA'?'dia':'noite'}">${r.turno||''}</span>`;
 function compras(){listView({title:'Compras do período',list:'compras',groupBy:'fornecedor',adminGroup:true,addTitle:'🛒 Nova compra',editTitle:'🛒 Editar compra',
-  fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'fornecedor',l:'Fornecedor *',req:1},{k:'tipo',l:'Tipo',opts:['Custo','Despesa']},{k:'valor',l:'Valor *',t:'number',req:1}],
+  fields:[{k:'data',l:'Data *',t:'date',req:1},{k:'turno',l:'Turno',opts:['DIA','NOITE']},{k:'fornecedor',l:'Fornecedor *',req:1},{k:'tipo',l:'Tipo',opts:['Custo','Despesa']},{k:'valor',l:'Valor *',t:'number',req:1},{k:'obs',l:'Observação'}],
   cols:[{l:'Data',f:r=>fmtD(r.data)},{l:'Turno',f:pillT},{l:'Fornecedor',f:r=>r.fornecedor},
-        {l:'Tipo',f:r=>`<span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span>`},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
+        {l:'Tipo',f:r=>`<span class="pill ${r.tipo==='Custo'?'c':'d'}">${r.tipo}</span>`},
+        {l:'Observação',f:r=>r.obs?`<span class="muted">${r.obs}</span>`:'—'},{l:'Valor',r:1,f:r=>fmt(r.valor)}]})}
 // ================= FREELANCERS (pagamento semanal + recibo térmico) =================
 function freeTotal(f){
   if(f.itens&&f.itens.length)return r2(f.itens.reduce((s,i)=>s+(+i.valor||0)+(+i.heValor||0),0));
@@ -1108,8 +1109,8 @@ function relat(){
     head=['Data','Categoria','Descrição','Fornecedor','Tipo','Valor'];
     body=rows.map(f=>[fmtD(f.data),f.categoria||'',f.descricao||'',f.fornecedor||'',f.tipo||'Custo',fmt(f.valor)]);
   }else if(F.tipo==='compras'){
-    head=['Data','Turno','Fornecedor','Tipo','Valor'];
-    body=rows.map(c=>[`${fmtD(c.data)} ${dow(c.data)}`,c.turno||'',c.fornecedor,c.tipo,fmt(c.valor)]);
+    head=['Data','Turno','Fornecedor','Tipo','Observação','Valor'];
+    body=rows.map(c=>[`${fmtD(c.data)} ${dow(c.data)}`,c.turno||'',c.fornecedor,c.tipo,c.obs||'',fmt(c.valor)]);
   }else{
     head=['Data','Turno','Nome','Valor'];
     body=rows.map(a=>[`${fmtD(a.data)} ${dow(a.data)}`,a.turno||'',a.nome,fmt(a.valor)]);
