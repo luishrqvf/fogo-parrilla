@@ -398,7 +398,7 @@ function caixa(){
   ${isAdmin()?'<p class="muted" style="margin:0 0 10px">Custo, Despesa, Freelancer e Assinadas somam automaticamente os lançamentos das abas 🛒 👷 ✍️ do mesmo dia/turno (+ ajustes avulsos do fechamento).</p>':''}
   <div class="tw"><table><thead><tr>
     <th>Data</th><th>Turno</th><th>Resp.</th><th class="r">Cx inicial</th><th class="r">Din. delivery</th><th class="r">Suprim.</th>
-    ${isAdmin()?`<th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
+    ${isAdmin()?`<th class="r" style="color:var(--fire2)">TOTAL</th><th class="r">Faturam.</th><th class="r">iFood</th><th class="r">Whats</th>
     <th class="r">Dinheiro</th><th class="r">PIX/Cartão</th><th class="r">Assin.</th><th class="r">Custo</th><th class="r">Despesa</th><th class="r">Freela</th><th class="r">Cantor</th>`:''}
     <th class="r">Retirada</th><th class="r">Moto</th>${isAdmin()?'<th class="r">Saídas</th>':''}
     <th class="r">Cx final</th>${isAdmin()?'<th class="r">Difer.</th>':''}<th></th></tr></thead><tbody>
@@ -410,7 +410,8 @@ function caixa(){
       <td class="r">${fmt(c.cxIni)}</td>
       <td class="r">${+c.dinDel?fmt(c.dinDel):'—'}</td>
       <td class="r">${+c.supr?fmt(c.supr):'—'}</td>
-      ${isAdmin()?`<td class="r tot">${fmt(c.fat)}</td>
+      ${isAdmin()?`<td class="r" style="font-size:15px;font-weight:800;color:var(--fire)" title="Salão + iFood + WhatsApp">${fmt(r2((+c.fat||0)+(+c.ifood||0)+(+c.whats||0)))}</td>
+      <td class="r tot">${fmt(c.fat)}</td>
       <td class="r">${c.ifood?fmt(c.ifood):'—'}</td><td class="r">${c.whats?fmt(c.whats):'—'}</td>
       <td class="r">${fmt(c.din)}</td><td class="r">${fmt(c.cart)}</td>
       <td class="r" ${tip(e.assin,c.assinMan,e.l.assin)}>${e.assin?fmt(e.assin):'—'}</td>
