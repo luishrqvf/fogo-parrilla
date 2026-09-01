@@ -259,9 +259,8 @@ function dash(){
   <div class="grid charts" style="grid-template-columns:1fr">
     <div class="chartbox"><h3>Canais por dia</h3><canvas id="ch4"></canvas></div>
   </div>
-  <div class="grid charts" style="grid-template-columns:1fr 1fr">
+  <div class="grid charts" style="grid-template-columns:1fr">
     <div class="chartbox"><h3>Custo × Despesa — NF-e, Compras e Diretoria</h3><canvas id="ch6"></canvas></div>
-    <div class="chartbox"><h3>Custo × Despesa — por categoria</h3><canvas id="ch7"></canvas></div>
   </div>`;
   const dd=dias.map(d=>byT('DIA').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
   const dn=dias.map(d=>byT('NOITE').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
@@ -294,15 +293,8 @@ function dash(){
   const invDir=r2((DB.diretoria||[]).filter(inMes).filter(d=>d.tipo==='Investimento').reduce((s,d)=>s+(+d.valor||0),0));
   const totalCusto=r2(custoNf+custoCompras+custoDir);
   const totalDesp=r2(despNf+despCompras+despDir);
-  donut('ch6',['Custo','Despesa','Investimento'],[totalCusto,totalDesp,invDir],['#e5544b','#5aa9e6','#9c938a']);
-  // por categoria
-  const catMap={};
-  DB.nfs.filter(inMes).forEach(n=>{const cat=n.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+n.valor||0))});
-  DB.compras.filter(inMes).forEach(c=>{const cat=c.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+c.valor||0))});
-  (DB.diretoria||[]).filter(inMes).forEach(d=>{const cat=d.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+d.valor||0))});
-  const catLabels=Object.keys(catMap).sort((a,b)=>catMap[b]-catMap[a]);
-  const catCores=['#e5544b','#5aa9e6','#4cc27a','#ff7a1a','#9c938a','#b79df5','#ffd66b'];
-  donut('ch7',catLabels,catLabels.map(c=>catMap[c]),catLabels.map((_,i)=>catCores[i%catCores.length]));
+  const valorPlugin={id:'valorPlugin',afterDraw(chart){const{ctx}=chart;chart.data.datasets[0].data.forEach((v,i)=>{const meta=chart.getDatasetMeta(0);const arc=meta.data[i];const{cx,cy}=arc;const ang=(arc.startAngle+arc.endAngle)/2;const r=arc.outerRadius-20;const x=cx+r*Math.cos(ang);const y=cy+r*Math.sin(ang);ctx.save();ctx.fillStyle='#efe9e2';ctx.font='bold 12px Segoe UI,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(fmt(v),x,y);ctx.restore()})}};
+  new Chart(document.getElementById('ch6'),{type:'doughnut',plugins:[valorPlugin],data:{labels:['Custo','Despesa','Investimento'],datasets:[{data:[totalCusto,totalDesp,invDir],backgroundColor:['#e5544b','#5aa9e6','#9c938a'],borderColor:css('--card')}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:MUT}},tooltip:{callbacks:{label:ctx=>{const t=ctx.dataset.data.reduce((s,v)=>s+v,0);return ` ${ctx.label}: ${fmt(ctx.parsed)} (${t?(ctx.parsed/t*100).toFixed(1).replace('.',','):0}%)`}}}}}});
 }
 
 // ================= CAIXA =================
