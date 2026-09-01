@@ -260,7 +260,7 @@ function dash(){
     <div class="chartbox"><h3>Canais por dia</h3><canvas id="ch4"></canvas></div>
   </div>
   <div class="grid charts" style="grid-template-columns:1fr 1fr">
-    <div class="chartbox"><h3>Custo × Despesa — todos os lançamentos</h3><canvas id="ch6"></canvas></div>
+    <div class="chartbox"><h3>Custo × Despesa — NF-e, Compras e Diretoria</h3><canvas id="ch6"></canvas></div>
     <div class="chartbox"><h3>Custo × Despesa — por categoria</h3><canvas id="ch7"></canvas></div>
   </div>`;
   const dd=dias.map(d=>byT('DIA').filter(c=>c.data===d).reduce((s,c)=>s+c.fat+c.ifood+c.whats,0));
@@ -285,16 +285,19 @@ function dash(){
     {label:'iFood',data:ifoodD,backgroundColor:'#e5544b'},
     {label:'WhatsApp',data:whatsD,backgroundColor:'#5aa9e6'}]},options:gopt});
   // ---- Custo x Despesa ----
+  const custoNf=r2(DB.nfs.filter(inMes).filter(n=>n.tipo==='Custo').reduce((s,n)=>s+(+n.valor||0),0));
+  const despNf=r2(DB.nfs.filter(inMes).filter(n=>n.tipo!=='Custo').reduce((s,n)=>s+(+n.valor||0),0));
   const custoCompras=r2(DB.compras.filter(inMes).filter(c=>c.tipo==='Custo').reduce((s,c)=>s+(+c.valor||0),0));
   const despCompras=r2(DB.compras.filter(inMes).filter(c=>c.tipo!=='Custo').reduce((s,c)=>s+(+c.valor||0),0));
   const custoDir=r2((DB.diretoria||[]).filter(inMes).filter(d=>d.tipo==='Custo').reduce((s,d)=>s+(+d.valor||0),0));
   const despDir=r2((DB.diretoria||[]).filter(inMes).filter(d=>d.tipo==='Despesa').reduce((s,d)=>s+(+d.valor||0),0));
   const invDir=r2((DB.diretoria||[]).filter(inMes).filter(d=>d.tipo==='Investimento').reduce((s,d)=>s+(+d.valor||0),0));
-  const totalCusto=r2(custoCompras+custoDir);
-  const totalDesp=r2(despCompras+despDir);
+  const totalCusto=r2(custoNf+custoCompras+custoDir);
+  const totalDesp=r2(despNf+despCompras+despDir);
   donut('ch6',['Custo','Despesa','Investimento'],[totalCusto,totalDesp,invDir],['#e5544b','#5aa9e6','#9c938a']);
   // por categoria
   const catMap={};
+  DB.nfs.filter(inMes).forEach(n=>{const cat=n.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+n.valor||0))});
   DB.compras.filter(inMes).forEach(c=>{const cat=c.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+c.valor||0))});
   (DB.diretoria||[]).filter(inMes).forEach(d=>{const cat=d.tipo||'Outros';catMap[cat]=r2((catMap[cat]||0)+(+d.valor||0))});
   const catLabels=Object.keys(catMap).sort((a,b)=>catMap[b]-catMap[a]);
